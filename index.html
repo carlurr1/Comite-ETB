@@ -361,10 +361,24 @@ function leerClientes(wb){ const mapa=new Map();
   return mapa; }
 
 /* ====================== bolsa de INC (completa) ====================== */
-// RESPONSABLE (col BM): HDP* → nivel 1; el resto son escalados:
+// Nivel de atención → columna K: "HD" = HDP (Nivel 1); "ASC"/"Fibra" = escalado.
+// Desglose de escalados → RESPONSABLE (col BM):
 //   ASG_CORP → CPE · FALLA GPON → GPON · FIBRA → COFO · OTROS → bolsa de OTROS
-function categoriaResp(r){ if(!r)return"(SIN RESPONSABLE)"; if(r.startsWith("HDP"))return"HDP";
-  if(/ASG/.test(r))return"CPE"; if(/GPON/.test(r))return"GPON"; if(/FIBRA/.test(r))return"COFO"; return r; }
+function categoriaResp(r){ if(!r)return"(SIN RESPONSABLE)";
+  if(/ASG/.test(r))return"CPE"; if(/GPON/.test(r))return"GPON"; if(/FIBRA/.test(r))return"COFO";
+  if(r.startsWith("HDP")||r==="HD")return"HDP"; return r; }
+const esNivelHDP=v=>{ const n=norm(v); return n==="hd"||n==="hdp"; };
+// Ubica la columna del nivel (K). Se detecta por contenido: la columna cuyos
+// valores son mayoritariamente HD/HDP/ASC/Fibra. Respaldo: la columna K (índice 10).
+function detectarColNivel(grid,hr){
+  const valido=v=>{ const n=norm(v); return n==="hd"||n==="hdp"||n==="asc"||n==="fibra"; };
+  let ncols=0; for(let r=hr+1;r<grid.length;r++)ncols=Math.max(ncols,(grid[r]||[]).length);
+  let best=-1,bestOk=0;
+  for(let c=0;c<ncols;c++){ let ok=0,noVacio=0;
+    for(let r=hr+1;r<grid.length;r++){ const v=(grid[r]||[])[c]; if(v===""||v==null)continue; noVacio++; if(valido(v))ok++; }
+    if(noVacio>=5 && ok/noVacio>=0.6 && ok>bestOk){ bestOk=ok; best=c; } }
+  return best>=0? best : 10;
+}
 
 function leerBolsa(wb,segmentoDeNit){
   const hoja=wb.Sheets[wb.SheetNames.find(n=>norm(n)==="bolsa")||wb.SheetNames[0]];
@@ -372,6 +386,7 @@ function leerBolsa(wb,segmentoDeNit){
   let hr=grid.findIndex(f=>(f||[]).some(c=>norm(c)==="iddelaincidencia")); if(hr<0)hr=1;
   const header=(grid[hr]||[]).map(h=>String(h).trim()); const idx=n=>header.findIndex(h=>h===n);
   const iResp=idx("RESPONSABLE"), iEstado=idx("ESTADO"), iDias=idx("DIAS_ABIERTO"), iNit=idx("NIT");
+  const iNivel=detectarColNivel(grid,hr);
   const porSeg=new Map(); let total=0, clas=0;
   const nodo=k=>porSeg.get(k)??porSeg.set(k,{total:0,hdp:{n:0,dias:[]},esc:new Map(),otrosMapa:new Map()}).get(k);
   for(let r=hr+1;r<grid.length;r++){ const fila=grid[r]||[]; if(!fila.some(c=>c!==""))continue;
@@ -380,9 +395,10 @@ function leerBolsa(wb,segmentoDeNit){
     const n=nodo(seg); n.total++;
     const resp=String(fila[iResp]).trim().toUpperCase();
     const diaTxt=String(fila[iDias]).trim(); const dia=parseFloat(diaTxt.replace(",","."));
-    const cat=categoriaResp(resp);
-    if(cat==="HDP"){ n.hdp.n++; if(Number.isFinite(dia))n.hdp.dias.push(dia); }
-    else{ const e=n.esc.get(cat)??n.esc.set(cat,{n:0,dias:[]}).get(cat); e.n++; if(Number.isFinite(dia))e.dias.push(dia); }
+    // Nivel 1 (HDP) por columna K; si no hay columna K, respaldo por RESPONSABLE.
+    const hdp = iNivel>=0 ? esNivelHDP(fila[iNivel]) : categoriaResp(resp)==="HDP";
+    if(hdp){ n.hdp.n++; if(Number.isFinite(dia))n.hdp.dias.push(dia); }
+    else{ const cat=categoriaResp(resp); const e=n.esc.get(cat)??n.esc.set(cat,{n:0,dias:[]}).get(cat); e.n++; if(Number.isFinite(dia))e.dias.push(dia); }
     if(resp==="OTROS"){ const estado=String(fila[iEstado]).trim()||"SIN ESTADO"; const clave=estado+"||"+(diaTxt||"-");
       n.otrosMapa.set(clave,(n.otrosMapa.get(clave)||0)+1); }
   }
@@ -552,7 +568,7 @@ function bloqueBolsaTotal(d){ const b=d.bolsaTotal; if(!b||!b.total)return"";
   const altoCats=Math.max(46,cats.length*30);
   const item=c=>`<div class="n2-item"><span class="n2-nom" title="${c.nombre}">${c.nombre}</span><span class="n2-bar"><i style="width:${(c.n/maxN*100).toFixed(1)}%;background:${eTb.naranja}"></i></span><b>${fmt(c.n)} casos</b><small>${statDias(c.dias)}</small></div>`;
   const altoOuter=96+altoCats;
-  return `<div class="panel w980" data-capture="bolsa-total"><div class="panel-head"><div><div class="panel-title">Bolsa INC total — ${d.segmento}</div><div class="panel-sub">Toda la bolsa (todos los responsables) · RESPONSABLE: ASG_CORP → CPE · FALLA GPON → GPON · FIBRA → COFO</div></div><img class="logo" src="${LOGO_ETB}"/></div>
+  return `<div class="panel w980" data-capture="bolsa-total"><div class="panel-head"><div><div class="panel-title">Bolsa INC total — ${d.segmento}</div><div class="panel-sub">Toda la bolsa · Nivel 1 (HDP) por columna K (HD) · escalados por RESPONSABLE: ASG_CORP → CPE · FALLA GPON → GPON · FIBRA → COFO</div></div><img class="logo" src="${LOGO_ETB}"/></div>
     <div class="arbol">
       <div class="arbol-hero"><div class="rn-num">${fmt(b.total)}</div><div class="rn-lbl">casos en bolsa</div></div>
       ${llave(altoOuter)}
