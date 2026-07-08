@@ -1,0 +1,20 @@
+{
+  "name": "comite-etb",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Genera el tablero del comité de soporte eTb por segmento (PNG por bloque) desde los Excel de la semana.",
+  "scripts": {
+    "graficas": "tsx cli/generar.ts",
+    "graficas:plantilla": "tsx cli/crear-plantilla.ts",
+    "graficas:llamadas": "tsx cli/llamadas.ts",
+    "graficas:semaforo": "tsx cli/semaforo.ts"
+  },
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.61.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,8 @@
+node_modules
+*.log
+*.tsbuildinfo
+
+# Salidas e insumos generados
+/salida
+*.xlsx
+!plantilla-*.xlsx
