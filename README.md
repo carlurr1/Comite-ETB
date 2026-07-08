@@ -6,17 +6,17 @@ semana. Produce imágenes **PNG** listas para copiar/pegar en la presentación.
 
 Hay dos formas de usarlo:
 
-- **Web (recomendada, sin instalar nada):** [`web/tablero.html`](web/tablero.html).
+- **Web (recomendada, sin instalar nada):** [`index.html`](index.html) — desplegada en Vercel.
 - **CLI (línea de comandos):** scripts de `cli/`.
 
 ---
 
-## Web — `web/tablero.html`
+## Web — `index.html`
 
 Página autónoma (un solo archivo, SheetJS y logo eTb incrustados; funciona
 **offline**).
 
-1. Abre `web/tablero.html` con doble clic (Chrome/Edge).
+1. Entra a la URL de Vercel (o abre `index.html` con doble clic en Chrome/Edge).
 2. Sube los archivos de la semana:
    - **Semáforo de soporte** → indicadores operativos (Resolutividad, TMS) por segmento.
    - **Bolsa de INC** (`Bolsa_*.xlsx`) → tabla de INC en gestión (OTROS).
@@ -66,7 +66,7 @@ binario concreto, exporta `PLAYWRIGHT_CHROMIUM`.
 ## Estructura
 
 ```
-web/tablero.html     Herramienta web autónoma (uso semanal)
+index.html           Herramienta web autónoma (raíz, la sirve Vercel)
 cli/                 Versión de línea de comandos (TypeScript, tsx)
 assets/etb.png       Logo eTb (para el CLI)
 ```
