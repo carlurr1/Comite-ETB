@@ -18,13 +18,16 @@ Página autónoma (un solo archivo, SheetJS y logo eTb incrustados; funciona
 
 1. Entra a la URL de Vercel (o abre `index.html` con doble clic en Chrome/Edge).
 2. Sube los archivos de la semana:
-   - **Semáforo de soporte** → indicadores operativos (Resolutividad, TMS) por segmento.
-   - **Bolsa de INC** (`Bolsa_*.xlsx`) → tabla de INC en gestión (OTROS).
+   - **Semáforo de soporte** → operativos por segmento **Sin y Con COFO** (Resolutividad,
+     TMS, TMS N2 por área, TMS por tipo de falla) y casos creados por canal.
+   - **Bolsa de INC** (`Bolsa_*.xlsx`) → **toda la bolsa**: división HDP/escalados
+     (CPE, GPON, COFO, OTROS) + tabla de INC en gestión (OTROS).
    - **Base de clientes** → clasifica la bolsa por segmento (NIT → `AGENTE_SEGUIMIENTO`).
-   - **Llamadas (ACD)** (`NS_SOPORTE.xls`) → indicadores de atención (general).
+   - **Llamadas (ACD)** (`NS_SOPORTE.xls`) → indicadores de atención (**solo bloque General**).
    - **Datos base** (opcional) → hojas `Evolutivo` / `CasosMes` / `Desglose`.
-3. Completa **Corte** y **Solicitudes Mail**.
-4. **Generar tablero** → botón **PNG** en cada bloque (o **Descargar todas**).
+3. Completa **Corte** (los casos por llamada/correo ya no se digitan: se cuentan de la BBDD).
+4. **Generar tablero** → primero el bloque **General** (atención + ratio) y luego los
+   bloques por segmento; botón **PNG** en cada bloque (o **Descargar todas**).
 
 ---
 
@@ -51,17 +54,24 @@ binario concreto, exporta `PLAYWRIGHT_CHROMIUM`.
 
 | Bloque | Fuente | Cálculo |
 |---|---|---|
-| **Atención** (NS, NA, AHT) | Llamadas ACD | promedio diario |
-| **Atención** (Ofrecidas, Atendidas) | Llamadas ACD | total del período |
-| **Solicitudes Mail** | manual | — |
-| **Casos creados por llamada** | Semáforo, `Origen del caso` (col V), `BASE=Ingresos` | conteo de ingresos telefónicos |
-| **Resolutividad** (`%SNU`, Sin COFO) | Semáforo, hoja `SN1` | leído de la tabla oficial |
-| **TMS** (Sin COFO) | Semáforo, hoja `TMS` | leído de la tabla oficial |
-| **TMS Telefónico / Correo N1, Nivel 2** | Semáforo `BBDD` | promedio TMS por canal / nivel |
-| **Bolsa INC (OTROS)** | Bolsa + Base de clientes | estado × días abiertos, segmento por NIT |
+| **Atención** (NS, NA, AHT) — solo General | Llamadas ACD | promedio diario |
+| **Atención** (Ofrecidas, Atendidas) — solo General | Llamadas ACD | total del período |
+| **Casos por llamada / correo** (General y por segmento) | Semáforo `BBDD`, `Origen del caso` (col V), `BASE=Ingresos` | teléfono/llamada → llamada; correo **y** correo automático → correo |
+| **Resolutividad** (`%SNU`) Sin y Con COFO | Semáforo, hoja `SN1` | leído de la tabla oficial (bloque Sin/Con COFO); respaldo: cálculo desde `BBDD` |
+| **TMS** Sin y Con COFO | Semáforo, hoja `TMS` | leído de la tabla oficial (bloque Sin/Con COFO); respaldo: cálculo desde `BBDD` |
+| **TMS Nivel 2 por área** (llaves) | Semáforo `BBDD`, `BaseCerradosAreaSolucion` (col AI) | promedio TMS por área de solución, incluye "(En blanco)" |
+| **TMS por tipo de falla** | Semáforo `BBDD`, tipo de falla (col BF) | promedio TMS por falla, series Sin y Con COFO |
+| **Bolsa INC total** | Bolsa completa + Base de clientes | por `RESPONSABLE` (col BM): HDP → Nivel 1; ASG_CORP → CPE, FALLA GPON → GPON, FIBRA → COFO, OTROS; días abiertos prom/máx |
+| **Bolsa OTROS** (estado × días) | Bolsa, `RESPONSABLE=OTROS` | estado × días abiertos, segmento por NIT |
 
-- **Metas por segmento**: Resolutividad y TMS por segmento; NS 80% / NA 95% generales.
-- **Nivel 1 (HDP)** = área de solución empieza por `HDP`; **Nivel 2** = escalado (≠ HDP).
+- **Metas por segmento**: Resolutividad y TMS por segmento (iguales Con y Sin COFO);
+  NS 80% / NA 95% generales.
+- **Nivel 1 (HDP)** = área de solución empieza por `HDP`; **Nivel 2** = el resto
+  (incluye área en blanco).
+- **"Con COFO" desde BBDD** (cuando la hoja oficial no trae el bloque): un caso se
+  considera COFO si la columna `COFO` = 1 **o** el tipo de falla contiene
+  "COFO"/"FIBRA".
+- El CLI (`cli/`) conserva la versión anterior del tablero; la web es la vigente.
 
 ## Estructura
 
