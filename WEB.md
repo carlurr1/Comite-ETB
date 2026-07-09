@@ -29,8 +29,10 @@ funciona **offline** (no necesita internet).
   **Top 4 origen del caso** (ingresos sin cancelados) reemplaza al ratio de contacto.
 - **Operativos** (semáforo, **Sin y Con COFO**): Resolutividad = `%SNU` y TMS = "Promedio de TMS"
   leídos de las hojas `SN1`/`TMS` (bloque Sin/Con COFO); respaldo calculado de `BBDD`.
-  TMS N2 se subdivide por `BaseCerradosAreaSolucion` (col AI) y hay gráfica de TMS por
-  tipo de falla (col BF).
+  El split **COFO se hace por causa** (`Categoría de Resolución Nivel 2` de infraestructura/fibra:
+  última milla, transmisión, red metro ethernet, cable troncal, planta…; ver `CAUSAS_COFO` en el HTML),
+  no por la columna `COFO` (que casi no marca casos). TMS N1 y N2 se subdividen por
+  `BaseCerradosAreaSolucion` y hay gráfica de TMS por tipo de falla.
 - **Metas por segmento**: Resolutividad y TMS por segmento (definidas en el objeto `METAS` del HTML,
   iguales Con y Sin COFO); NS 80% / NA 95% generales.
 - **Bolsa**: toda la bolsa. Segmento por la columna **`MESA`** (MEN + PREMIUM 1..4 → Premium,

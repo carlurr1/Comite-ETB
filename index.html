@@ -302,6 +302,13 @@ const esHDP=a=>norm(a).startsWith("hdp");
 const esCanalTel=o=>/tel[eé]fono|llamada/i.test(String(o));
 const esCanalCor=o=>/correo/i.test(String(o)); // incluye "correo automático"
 
+// COFO = casos cuya CAUSA (Categoría de Resolución Nivel 2) es de infraestructura/fibra
+// (planta externa / última milla / transmisión). Reproduce el bloque "Sin COFO" del
+// semáforo (que recorta los escalados por esta causa). Editar esta lista si hace falta.
+const CAUSAS_COFO=new Set(["ultimamilla","transmision","redmetroethernet","cabletroncal",
+  "plantatelefonica","fibraaccesoplantaexterna","nodo","redconmutaciontdm","reddatacenter",
+  "redinteligente","cabletroncalprimario","primario"]);
+
 function filasBBDD(wb){ const hoja=wb.SheetNames.find(n=>norm(n)==="bbdd")||wb.SheetNames[0]; return XLSX.utils.sheet_to_json(wb.Sheets[hoja],{defval:""}); }
 
 function analizarBBDD(wb){
@@ -312,8 +319,9 @@ function analizarBBDD(wb){
   const falla=f=>kFalla?txt(f[kFalla]):"";
   const origen=f=>col(f,"Origen del caso","Origen");
   const tms=f=>num(col(f,"TMS"));
-  // "COFO" en la BBDD: columna COFO=1 o tipo de falla de fibra/COFO
-  const esCOFO=f=>String(col(f,"COFO")).trim()==="1"||/cofo|fibra/i.test(falla(f));
+  // COFO por causa (Categoría de Resolución Nivel 2) de infraestructura/fibra; respaldo columna COFO=1.
+  const causa=f=>col(f,"Categoria de Resolucion Nivel 2","Categoria de Resolucion Nivel2");
+  const esCOFO=f=>CAUSAS_COFO.has(norm(causa(f)))||String(col(f,"COFO")).trim()==="1";
 
   const esCancelado=f=>norm(col(f,"Estado"))==="cancelado";
   const cerrados=filas.filter(f=>norm(col(f,"BASE"))==="cerrados");
