@@ -202,20 +202,14 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       <div class="ok" id="ok-llamadas"></div>
     </div>
     <div class="campo">
-      <label>5 · Datos base (opcional)</label>
-      <div class="hint">Excel con hojas Evolutivo / CasosMes / Desglose (gráficas y COFO/OTROS).</div>
-      <input type="file" id="f-datos" accept=".xlsx,.xls" />
-      <div class="ok" id="ok-datos"></div>
-    </div>
-    <div class="campo">
-      <label>6 · Ingresos / Cierres / Pendientes</label>
-      <div class="hint">Excel por mes y segmento (INGRESOS / CERRADOS / PENDIENTES). Barras por segmento en el bloque General.</div>
+      <label>5 · Ingresos / Cierres / Pendientes</label>
+      <div class="hint">Excel por mes y segmento (INGRESOS / CERRADOS / PENDIENTES). Barras por segmento y totales por mes en el General.</div>
       <input type="file" id="f-icp" accept=".xlsx,.xls" />
       <div class="ok" id="ok-icp"></div>
     </div>
     <div class="campo">
-      <label>7 · Tipificación (del mes)</label>
-      <div class="hint">Excel con MES / TIEMPO / EFECTIVIDAD. Tabla en el bloque General.</div>
+      <label>6 · Tipificación</label>
+      <div class="hint">Excel con MES / TIEMPO / EFECTIVIDAD. Tabla + línea de efectividad en el General.</div>
       <input type="file" id="f-tipif" accept=".xlsx,.xls" />
       <div class="ok" id="ok-tipif"></div>
     </div>
@@ -308,6 +302,13 @@ const esHDP=a=>norm(a).startsWith("hdp");
 const esCanalTel=o=>/tel[eé]fono|llamada/i.test(String(o));
 const esCanalCor=o=>/correo/i.test(String(o)); // incluye "correo automático"
 
+// COFO = casos cuya CAUSA (Categoría de Resolución Nivel 2) es de infraestructura/fibra
+// (planta externa / última milla / transmisión). Reproduce el bloque "Sin COFO" del
+// semáforo (que recorta los escalados por esta causa). Editar esta lista si hace falta.
+const CAUSAS_COFO=new Set(["ultimamilla","transmision","redmetroethernet","cabletroncal",
+  "plantatelefonica","fibraaccesoplantaexterna","nodo","redconmutaciontdm","reddatacenter",
+  "redinteligente","cabletroncalprimario","primario"]);
+
 function filasBBDD(wb){ const hoja=wb.SheetNames.find(n=>norm(n)==="bbdd")||wb.SheetNames[0]; return XLSX.utils.sheet_to_json(wb.Sheets[hoja],{defval:""}); }
 
 function analizarBBDD(wb){
@@ -318,8 +319,9 @@ function analizarBBDD(wb){
   const falla=f=>kFalla?txt(f[kFalla]):"";
   const origen=f=>col(f,"Origen del caso","Origen");
   const tms=f=>num(col(f,"TMS"));
-  // "COFO" en la BBDD: columna COFO=1 o tipo de falla de fibra/COFO
-  const esCOFO=f=>String(col(f,"COFO")).trim()==="1"||/cofo|fibra/i.test(falla(f));
+  // COFO por causa (Categoría de Resolución Nivel 2) de infraestructura/fibra; respaldo columna COFO=1.
+  const causa=f=>col(f,"Categoria de Resolucion Nivel 2","Categoria de Resolucion Nivel2");
+  const esCOFO=f=>CAUSAS_COFO.has(norm(causa(f)))||String(col(f,"COFO")).trim()==="1";
 
   const esCancelado=f=>norm(col(f,"Estado"))==="cancelado";
   const cerrados=filas.filter(f=>norm(col(f,"BASE"))==="cerrados");
@@ -400,7 +402,7 @@ function leerBolsa(wb,segmentoDeNit){
   const header=(grid[hr]||[]).map(h=>String(h).trim()); const idx=n=>header.findIndex(h=>h===n);
   const iResp=idx("RESPONSABLE"), iEstado=idx("ESTADO"), iDias=idx("DIAS_ABIERTO"), iNit=idx("NIT"), iMesa=idx("MESA"), iGrupo=idx("GRUPO_ASIGNADO");
   const porSeg=new Map(); let total=0, clas=0;
-  const nodo=k=>porSeg.get(k)??porSeg.set(k,{total:0,hdp:{n:0,dias:[]},esc:new Map(),otrosMapa:new Map()}).get(k);
+  const nodo=k=>porSeg.get(k)??porSeg.set(k,{total:0,hdp:{n:0,dias:[]},hdpEsc:new Map(),esc:new Map(),otrosMapa:new Map()}).get(k);
   for(let r=hr+1;r<grid.length;r++){ const fila=grid[r]||[]; if(!fila.some(c=>c!==""))continue;
     total++;
     const mesa=iMesa>=0?String(fila[iMesa]).trim():"";
@@ -410,7 +412,8 @@ function leerBolsa(wb,segmentoDeNit){
     const diaTxt=String(fila[iDias]).trim(); const dia=parseFloat(diaTxt.replace(",","."));
     // Primer nivel (HDP) = GRUPO_ASIGNADO (col J) empieza por HDPREMIUM; el resto son escalados.
     const esN1=String(fila[iGrupo]).trim().toUpperCase().startsWith("HDPREMIUM");
-    if(esN1){ n.hdp.n++; if(Number.isFinite(dia))n.hdp.dias.push(dia); }
+    if(esN1){ n.hdp.n++; if(Number.isFinite(dia))n.hdp.dias.push(dia);
+      const cat=categoriaResp(resp); const e=n.hdpEsc.get(cat)??n.hdpEsc.set(cat,{n:0,dias:[]}).get(cat); e.n++; if(Number.isFinite(dia))e.dias.push(dia); }
     else{ const cat=categoriaResp(resp); const e=n.esc.get(cat)??n.esc.set(cat,{n:0,dias:[]}).get(cat); e.n++; if(Number.isFinite(dia))e.dias.push(dia); }
     if(resp==="OTROS"){ const estado=String(fila[iEstado]).trim()||"SIN ESTADO"; const clave=estado+"||"+(diaTxt||"-");
       n.otrosMapa.set(clave,(n.otrosMapa.get(clave)||0)+1); }
@@ -421,7 +424,8 @@ function leerBolsa(wb,segmentoDeNit){
 
 /* ====================== ingresos / cierres / pendientes ====================== */
 // Hoja tipo "BOLSA CASOS": fila de segmentos (1.ELITE, 2.DISTRITO…) arriba de la fila
-// MES | INGRESOS | CERRADOS | PENDIENTES (×segmento). Se toma el último mes con datos.
+// MES | INGRESOS | CERRADOS | PENDIENTES (×segmento). Devuelve todos los meses
+// (para el general por mes) y el último mes con datos (para las barras por segmento).
 function leerICP(wb){
   const hoja=wb.Sheets[wb.SheetNames.find(n=>/casos|ingres|icp/i.test(n))||wb.SheetNames[0]];
   const grid=XLSX.utils.sheet_to_json(hoja,{header:1,defval:""});
@@ -432,17 +436,19 @@ function leerICP(wb){
   for(let c=1;c<subRow.length;c++){ const seg=claveSegmento(txt(colSeg[c]).replace(/^\s*\d+\s*\.?\s*/,"")); if(!seg)continue;
     const t=norm(subRow[c]), o=segCols.get(seg)??segCols.set(seg,{}).get(seg);
     if(t.startsWith("ingres"))o.ing=c; else if(t.startsWith("cerr")||t.startsWith("cierr"))o.cer=c; else if(t.startsWith("pend"))o.pen=c; }
-  let mes="", vals=null;
+  const meses=[];
   for(let r=hr+1;r<grid.length;r++){ const f=grid[r]||[]; const m=txt(f[0]); if(!m)continue;
-    if([...segCols.values()].some(o=>num(f[o.ing])||num(f[o.cer])||num(f[o.pen]))){ mes=m; vals=f; } }
-  if(!vals)return null;
-  const porSeg=new Map();
-  for(const[seg,o] of segCols) porSeg.set(seg,{ingresos:num(vals[o.ing]),cerrados:num(vals[o.cer]),pendientes:num(vals[o.pen])});
-  return {mes,porSeg};
+    const porSeg=new Map(); let ing=0,cer=0,pen=0;
+    for(const[seg,o] of segCols){ const i=num(f[o.ing]),c=num(f[o.cer]),p=num(f[o.pen]);
+      porSeg.set(seg,{ingresos:i,cerrados:c,pendientes:p}); ing+=i;cer+=c;pen+=p; }
+    if(ing||cer||pen) meses.push({mes:m,porSeg,ingresos:ing,cerrados:cer,pendientes:pen}); }
+  if(!meses.length)return null;
+  return {meses, ultimo:meses[meses.length-1]};
 }
 
 /* ====================== tipificación (mes) ====================== */
-// Hoja con encabezado MES | TIEMPO | EFECTIVIDAD (en cualquier fila/columna).
+// Hoja con encabezado MES | TIEMPO | EFECTIVIDAD. Se queda solo con el año en curso
+// (desde el último ENERO en adelante) para no duplicar meses de dos años.
 function leerTipif(wb){
   for(const nombre of wb.SheetNames){
     const grid=XLSX.utils.sheet_to_json(wb.Sheets[nombre],{header:1,defval:""});
@@ -450,11 +456,14 @@ function leerTipif(wb){
     const head=grid[hr]||[]; const iM=head.findIndex(c=>norm(c)==="mes"),
       iT=head.findIndex(c=>norm(c).startsWith("tiempo")), iE=head.findIndex(c=>norm(c).startsWith("efectividad"));
     if(iM<0||iT<0||iE<0)continue;
-    const filas=[];
+    let filas=[];
     for(let r=hr+1;r<grid.length;r++){ const f=grid[r]||[]; const m=txt(f[iM]); if(!m)continue;
       const tr=f[iT], tiempo=typeof tr==="number"?diasAHms(tr):txt(tr);
       let ef=num(f[iE]); if(ef<=1.5)ef*=100;
       filas.push({mes:m,tiempo,efectividad:ef}); }
+    // Quedarse con el último bloque anual: desde la última aparición de "enero".
+    const ultEnero=filas.map(x=>norm(x.mes)).lastIndexOf("enero");
+    if(ultEnero>0) filas=filas.slice(ultEnero);
     if(filas.length)return filas;
   }
   return null;
@@ -540,24 +549,38 @@ function grupoOperativos(titulo,m,metaResol,metaTmsHms){
 }
 
 /* ====================== bloques ====================== */
-// Barras Ingresos/Cierres/Pendientes por segmento (con etiqueta de valor).
-function bloqueICP(icp){ if(!icp||!icp.porSeg||!icp.porSeg.size)return"";
-  const orden=[["mayoristas","Mayoristas"],["distrito","Distrito"],["elite","Élite"],["gold","Gold"],["premium","Premium"]];
-  const filas=orden.filter(([k])=>icp.porSeg.has(k)).map(([k,n])=>{ const o=icp.porSeg.get(k); return {etiqueta:n,vals:[o.ingresos,o.cerrados,o.pendientes]}; });
-  if(!filas.length)return"";
-  const series=[{nombre:"Ingresos",color:eTb.cian},{nombre:"Cierres",color:"#1f8a4c"},{nombre:"Pendientes",color:eTb.naranja}];
-  return `<div class="grupo" style="margin-top:16px;width:100%"><div class="grupo-tit">Ingresos · Cierres · Pendientes por segmento${icp.mes?` — ${icp.mes}`:""}</div>${graficaBarras({filas,series,fmtV:n=>fmt(n)})}</div>`;
+// Top de "Origen del caso": el #1 arriba y una llave con el top 4 en orden (barras horizontales).
+function composicionTop(items){
+  if(!items||!items.length)return`<div class="sl-vacio">Sube el Semáforo (hoja BBDD)</div>`;
+  const top=items.slice(0,4); const alto=Math.max(46,top.length*30); const maxN=Math.max(1,...top.map(o=>o.n));
+  return `<div class="n2-comp">
+    <div class="n2-head"><div class="s-lbl">${top[0].nombre}</div><div class="s-val">${fmt(top[0].n)}</div><div class="s-meta">origen principal (sin cancelados)</div></div>
+    ${llave(alto)}
+    <div class="n2-items">${top.map(o=>`<div class="n2-item"><span class="n2-nom" title="${o.nombre}">${o.nombre}</span><span class="n2-bar"><i style="width:${(o.n/maxN*100).toFixed(1)}%"></i></span><b>${fmt(o.n)}</b></div>`).join("")}</div></div>`;
 }
-// Tabla simple de tipificación (Mes / Tiempo / Efectividad).
+// Ingresos/Cierres/Pendientes: por segmento (último mes, a la izquierda) + totales por mes (a la derecha).
+function bloqueICP(icp){ if(!icp||!icp.meses||!icp.meses.length)return"";
+  const ordenSeg=[["mayoristas","Mayoristas"],["distrito","Distrito"],["elite","Élite"],["gold","Gold"],["premium","Premium"]];
+  const series=[{nombre:"Ingresos",color:eTb.cian},{nombre:"Cierres",color:"#1f8a4c"},{nombre:"Pendientes",color:eTb.naranja}];
+  const u=icp.ultimo;
+  const filasSeg=ordenSeg.filter(([k])=>u.porSeg.has(k)).map(([k,n])=>{ const o=u.porSeg.get(k); return {etiqueta:n,vals:[o.ingresos,o.cerrados,o.pendientes]}; });
+  const izq=filasSeg.length?`<div class="grupo" style="flex:1;min-width:430px"><div class="grupo-tit">Ingresos · Cierres · Pendientes por segmento${u.mes?` — ${u.mes}`:""}</div>${graficaBarras({filas:filasSeg,series,fmtV:n=>fmt(n)})}</div>`:"";
+  const filasMes=icp.meses.map(m=>({etiqueta:m.mes,vals:[m.ingresos,m.cerrados,m.pendientes]}));
+  const der=`<div class="grupo" style="flex:1;min-width:430px"><div class="grupo-tit">Totales por mes (todos los segmentos)</div>${graficaBarras({filas:filasMes,series,fmtV:n=>fmt(n)})}</div>`;
+  return `<div style="display:flex;gap:20px;margin-top:16px;flex-wrap:wrap">${izq}${der}</div>`;
+}
+// Tipificación: tabla compacta (año en curso) + línea de efectividad por mes.
 function bloqueTipif(tipif){ if(!tipif||!tipif.length)return"";
   const filas=tipif.map(t=>`<tr><td class="izq">${t.mes}</td><td>${t.tiempo||"—"}</td><td>${pct(t.efectividad,1)}</td></tr>`).join("");
+  const tabla=`<table class="tabla-dias" style="min-width:260px;align-self:flex-start"><tr class="th"><td>Mes</td><th>Tiempo</th><th>Efectividad</th></tr>${filas}</table>`;
+  const puntos=tipif.map(t=>({etiqueta:t.mes.slice(0,3),valor:+Number(t.efectividad).toFixed(1)}));
+  const chart=graficaLinea({clave:"tipif-efect",titulo:"Efectividad",subtitulo:"Tipificación por mes (%)",puntos,ancho:520,alto:260}).replace(/ data-capture="[^"]*"/,"");
   return `<div class="grupo" style="margin-top:16px"><div class="grupo-tit">Tipificación</div>
-    <table class="tabla-dias"><tr class="th"><td>Mes</td><th>Tiempo</th><th>Efectividad</th></tr>${filas}</table></div>`;
+    <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">${tabla}${chart}</div></div>`;
 }
 function bloqueGeneral(g){
   const a=g.llamadas, ing=g.ingresos, icp=g.icp, tipif=g.tipif;
-  const top4=(ing&&ing.origen)?ing.origen.slice(0,4):[];
-  const bTop=top4.length?`<div class="op-kpis">${top4.map(o=>kpi(o.nombre,fmt(o.n),"Ingresos (sin cancelados)")).join("")}</div>`:`<div class="sl-vacio">Sube el Semáforo (hoja BBDD)</div>`;
+  const bTop=composicionTop(ing&&ing.origen);
   const bAt=a?`<div class="op-kpis" style="flex-wrap:wrap">
       ${kpi(`Nivel de servicio ${chip(a.ns>=80)}`,pct(a.ns),"Meta: 80%",medidor(a.ns,80,false,"var(--ok)"))}
       ${kpi("Nivel de atención",pct(a.na),"",medidor(a.na,0,false,"var(--ok)"))}
@@ -599,25 +622,10 @@ function bloqueSlide(d){
       ${grupoOperativos("Indicadores operativos — Sin COFO",o.sin,k.metaResolutividad,k.metaTMS)}
       ${grupoOperativos("Indicadores operativos — Con COFO",o.con,k.metaResolutividad,k.metaTMS)}
     </div>`:"";
-  const graf=(clave,titulo,sub,pts)=> pts.length
-    ? graficaLinea({clave,titulo,subtitulo:sub,puntos:pts,ancho:560,alto:250}).replace(/ data-capture="[^"]*"/,"")
-    : `<div class="ab-tit">${titulo}</div>${sub?`<div class="ab-sub">${sub}</div>`:""}<div class="sl-vacio">Sube el archivo "Datos base" con la hoja correspondiente</div>`;
-  const totalDes=d.desglose.reduce((s,f)=>s+f.cantidad,0);
-  const cofo=d.desglose.filter(f=>f.categoria.includes("COFO")).reduce((s,f)=>s+f.cantidad,0);
-  const otros=d.desglose.filter(f=>!f.categoria.includes("COFO")).reduce((s,f)=>s+f.cantidad,0);
-  const n1=o?o.sin.n1:0, n2=o?o.sin.n2:0;
-  const rama = d.desglose.length ? `<div class="rama"><span class="rama-num">${fmt(n2||totalDes)}</span>
-      <div class="rama-niv"><span><b>${fmt(n1)}</b> Primer nivel</span><span><b>${fmt(n2||totalDes)}</b> Segundo nivel</span>
-      <span>COFO: <b>${fmt(cofo)}</b> &nbsp; OTROS: <b>${fmt(otros)}</b></span></div></div>` : "";
   return `<div class="slide" data-capture="tablero">
     <div class="sl-head"><div><div class="sl-h1">Resultados ${d.segmento}</div><div class="sl-h3">Corte ${k.corte||"—"}</div><div class="sl-h2">Soporte técnico</div></div></div>
     ${canal}
     ${oper}
-    <hr class="sl-hr"/>
-    <div class="abajo">
-      <div>${graf("evolutivo-semanal","Detalle Casos falla técnica","Evolutivo casos abiertos",d.evolutivo)}${rama}</div>
-      <div>${graf("casos-finales-mes","Comportamiento de casos finales por mes","",d.casosMes)}</div>
-    </div>
   </div>`;
 }
 
@@ -635,20 +643,22 @@ function bloqueFallas(d){ const o=d.oper; if(!o)return"";
 
 const statDias=arr=>arr.length?`prom ${fmt(prom(arr),1)} · máx ${fmt(Math.max(...arr))} días abiertos`:"sin dato de días";
 function bloqueBolsaTotal(d){ const b=d.bolsaTotal; if(!b||!b.total)return"";
-  const cats=[...b.esc.entries()].map(([nombre,e])=>({nombre,n:e.n,dias:e.dias})).sort((x,y)=>y.n-x.n);
-  const escN=cats.reduce((s,c)=>s+c.n,0);
-  const maxN=Math.max(1,...cats.map(c=>c.n));
-  const altoCats=Math.max(46,cats.length*30);
+  const catsDe=m=>[...(m||new Map()).entries()].map(([nombre,e])=>({nombre,n:e.n,dias:e.dias})).sort((x,y)=>y.n-x.n);
+  const hdpCats=catsDe(b.hdpEsc), escCats=catsDe(b.esc);
+  const escN=escCats.reduce((s,c)=>s+c.n,0);
+  const maxN=Math.max(1,...hdpCats.map(c=>c.n),...escCats.map(c=>c.n));
   const item=c=>`<div class="n2-item"><span class="n2-nom" title="${c.nombre}">${c.nombre}</span><span class="n2-bar"><i style="width:${(c.n/maxN*100).toFixed(1)}%;background:${eTb.naranja}"></i></span><b>${fmt(c.n)} casos</b><small>${statDias(c.dias)}</small></div>`;
-  const altoOuter=96+altoCats;
+  const rama=(num,titulo,cats,dias)=>{ const alto=Math.max(46,cats.length*30);
+    return `<div class="rama-linea"><b class="rama-n">${fmt(num)}</b><span class="rama-t">${titulo}</span><small>${num&&dias?statDias(dias):""}</small></div>
+      <div class="n2-comp" style="margin-top:2px">${llave(alto,eTb.naranja)}<div class="n2-items">${cats.map(item).join("")||`<div class="sl-vacio">Sin casos</div>`}</div></div>`; };
+  const altoOuter=120+(hdpCats.length+escCats.length)*30;
   return `<div class="panel w980" data-capture="bolsa-total"><div class="panel-head"><div><div class="panel-title">Bolsa de Otros — ${d.segmento}</div></div></div>
     <div class="arbol">
       <div class="arbol-hero"><div class="rn-num">${fmt(b.total)}</div><div class="rn-lbl">casos en bolsa</div></div>
       ${llave(altoOuter)}
       <div class="arbol-ramas">
-        <div class="rama-linea"><b class="rama-n">${fmt(b.hdp.n)}</b><span class="rama-t">en HDP (Nivel 1)</span><small>${b.hdp.n?statDias(b.hdp.dias):""}</small></div>
-        <div class="rama-linea"><b class="rama-n">${fmt(escN)}</b><span class="rama-t">escalados</span></div>
-        <div class="n2-comp" style="margin-top:2px">${llave(altoCats,eTb.naranja)}<div class="n2-items">${cats.map(item).join("")||`<div class="sl-vacio">Sin escalados</div>`}</div></div>
+        ${rama(b.hdp.n,"en HDP (Nivel 1) — por estado",hdpCats,b.hdp.dias)}
+        ${rama(escN,"escalados (Nivel 2) — por área/estado",escCats,null)}
       </div>
     </div></div>`;
 }
@@ -674,9 +684,24 @@ const SEGMENTOS=[["mayoristas","Mayoristas"],["distrito","Distrito"],["elite","�
 
 /* ====================== orquestación ====================== */
 const archivos={};
-function bindInput(id,clave){ document.getElementById(id).addEventListener("change",async e=>{ const f=e.target.files[0]; if(!f){archivos[clave]=null;return;}
-  const buf=await f.arrayBuffer(); archivos[clave]=XLSX.read(buf,{type:"array"}); document.getElementById("ok-"+clave).textContent="✓ "+f.name; }); }
-["semaforo","bolsa","clientes","llamadas","datos","icp","tipif"].forEach(c=>bindInput("f-"+c,c));
+const SLOTS=["semaforo","bolsa","clientes","llamadas","icp","tipif"];
+
+// Persistencia local (IndexedDB): lo que alguien cargue queda guardado en este
+// navegador; al volver a entrar se restaura solo. Cargar un archivo nuevo reemplaza el anterior.
+const IDB_DB="comite-etb", IDB_STORE="archivos";
+function idbOpen(){ return new Promise((res,rej)=>{ const q=indexedDB.open(IDB_DB,1);
+  q.onupgradeneeded=()=>q.result.createObjectStore(IDB_STORE); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); }); }
+async function idbPut(k,v){ try{ const db=await idbOpen(); await new Promise((res,rej)=>{ const t=db.transaction(IDB_STORE,"readwrite"); t.objectStore(IDB_STORE).put(v,k); t.oncomplete=res; t.onerror=()=>rej(t.error); }); }catch(e){ console.warn("No se pudo guardar",k,e); } }
+async function idbGet(k){ try{ const db=await idbOpen(); return await new Promise((res,rej)=>{ const t=db.transaction(IDB_STORE,"readonly"); const r=t.objectStore(IDB_STORE).get(k); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }catch(e){ return null; } }
+
+function bindInput(id,clave){ const el=document.getElementById(id); if(!el)return;
+  el.addEventListener("change",async e=>{ const f=e.target.files[0]; if(!f)return;
+    const buf=await f.arrayBuffer(); archivos[clave]=XLSX.read(buf,{type:"array"});
+    document.getElementById("ok-"+clave).textContent="✓ "+f.name;
+    idbPut(clave,{name:f.name,buf}); }); }
+SLOTS.forEach(c=>bindInput("f-"+c,c));
+
+(async()=>{ for(const c of SLOTS){ const rec=await idbGet(c); if(rec&&rec.buf){ try{ archivos[c]=XLSX.read(rec.buf,{type:"array"}); const el=document.getElementById("ok-"+c); if(el)el.textContent="✓ "+rec.name+" (guardado)"; }catch(e){} } } })();
 
 function segmentoBase(clave,nombre){ return { segmento:nombre, oper:null, bolsaTotal:null,
   indicadores:{ corte:document.getElementById("m-corte").value.trim(),
@@ -702,13 +727,6 @@ function generar(){
     // 1) semáforo → operativos por segmento (Sin/Con COFO) + ingresos por canal
     if(archivos.semaforo){ const sem=leerSemaforo(archivos.semaforo); general.ingresos=sem.general;
       for(const s of segmentos) s.data.oper=sem.porSeg.get(s.clave)||null; }
-
-    // 5) datos base (evolutivo, casos mes, desglose)
-    if(archivos.datos){ const wb=archivos.datos; const evo=hojaJSON(wb,"Evolutivo"), mes=hojaJSON(wb,"CasosMes"), des=hojaJSON(wb,"Desglose");
-      for(const s of segmentos){ const n=s.data.segmento;
-        s.data.evolutivo=series(evo,n,["Periodo","Semana"],["Abiertos","Casos","Valor"]);
-        s.data.casosMes=series(mes,n,["Mes","Periodo"],["Casos","Valor"]);
-        s.data.desglose=des.filter(r=>norm(txt(col(r,"Segmento")))===norm(n)).map(r=>({categoria:txt(col(r,"Categoria","Categoría")).toUpperCase(),dia:txt(col(r,"Dia","Día","Dias")),cantidad:num(col(r,"Cantidad","Total"))})); } }
 
     // 2+3) bolsa completa con base de clientes + respaldo semáforo
     let notaBolsa="";
