@@ -191,7 +191,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     </div>
     <div class="campo">
       <label>3 · Base de clientes</label>
-      <div class="hint">NIT → Segmento (columna AGENTE_SEGUIMIENTO). Para clasificar la bolsa.</div>
+      <div class="hint">Respaldo NIT → Segmento (columna AGENTE_SEGUIMIENTO) si la bolsa no trae columna MESA.</div>
       <input type="file" id="f-clientes" accept=".xlsx,.xls" />
       <div class="ok" id="ok-clientes"></div>
     </div>
@@ -332,8 +332,8 @@ function analizarBBDD(wb){
     const promHoras=arr=>{ const v=arr.map(tms).filter(x=>x>0); return v.length? v.reduce((a,b)=>a+b,0)/v.length*24 : 0; };
     return { cerrados:g.length, n1:n1.length, n2:n2.length,
       resolCalc:g.length?n1.length/g.length*100:0,
-      tmsHoras:promHoras(g), tmsN2Horas:promHoras(n2),
-      areasN2:agg(n2,f=>area(f),"(En blanco)"), fallas:agg(g,f=>falla(f),"(Sin tipo de falla)") };
+      tmsHoras:promHoras(g), tmsN1Horas:promHoras(n1), tmsN2Horas:promHoras(n2),
+      areasN1:agg(n1,f=>area(f),"(En blanco)"), areasN2:agg(n2,f=>area(f),"(En blanco)"), fallas:agg(g,f=>falla(f),"(Sin tipo de falla)") };
   };
 
   const res=new Map();
@@ -366,23 +366,36 @@ function leerClientes(wb){ const mapa=new Map();
 function categoriaResp(r){ if(!r)return"(SIN RESPONSABLE)"; if(r.startsWith("HDP"))return"HDP";
   if(/ASG/.test(r))return"CPE"; if(/GPON/.test(r))return"GPON"; if(/FIBRA/.test(r))return"COFO"; return r; }
 
+// Segmento directo desde la columna MESA (col L) del archivo de bolsa nuevo:
+//   MEN + PREMIUM 1..4 → premium · GOLD 1 → gold · DISTRITO/ELITE/MAYORISTAS directos.
+//   SILVER y SIN MESA → "" (no son del comité; se ignoran).
+function clasificarMesa(m){ const t=norm(m); if(!t)return"";
+  if(t.startsWith("distrito"))return"distrito";
+  if(t.startsWith("elite"))return"elite";
+  if(t.startsWith("gold"))return"gold";
+  if(t.startsWith("mayoristas"))return"mayoristas";
+  if(t==="men"||t.startsWith("premium"))return"premium";
+  return""; }
+
 function leerBolsa(wb,segmentoDeNit){
   const hoja=wb.Sheets[wb.SheetNames.find(n=>norm(n)==="bolsa")||wb.SheetNames[0]];
   const grid=XLSX.utils.sheet_to_json(hoja,{header:1,defval:""});
   let hr=grid.findIndex(f=>(f||[]).some(c=>norm(c)==="iddelaincidencia")); if(hr<0)hr=1;
   const header=(grid[hr]||[]).map(h=>String(h).trim()); const idx=n=>header.findIndex(h=>h===n);
-  const iResp=idx("RESPONSABLE"), iEstado=idx("ESTADO"), iDias=idx("DIAS_ABIERTO"), iNit=idx("NIT");
+  const iResp=idx("RESPONSABLE"), iEstado=idx("ESTADO"), iDias=idx("DIAS_ABIERTO"), iNit=idx("NIT"), iMesa=idx("MESA"), iGrupo=idx("GRUPO_ASIGNADO");
   const porSeg=new Map(); let total=0, clas=0;
   const nodo=k=>porSeg.get(k)??porSeg.set(k,{total:0,hdp:{n:0,dias:[]},esc:new Map(),otrosMapa:new Map()}).get(k);
   for(let r=hr+1;r<grid.length;r++){ const fila=grid[r]||[]; if(!fila.some(c=>c!==""))continue;
     total++;
-    const seg=segmentoDeNit(nitNorm(fila[iNit]))||"sinsegmento"; if(seg!=="sinsegmento")clas++;
+    const mesa=iMesa>=0?String(fila[iMesa]).trim():"";
+    const seg=mesa ? (clasificarMesa(mesa)||"sinsegmento") : (segmentoDeNit(nitNorm(fila[iNit]))||"sinsegmento"); if(seg!=="sinsegmento")clas++;
     const n=nodo(seg); n.total++;
     const resp=String(fila[iResp]).trim().toUpperCase();
     const diaTxt=String(fila[iDias]).trim(); const dia=parseFloat(diaTxt.replace(",","."));
-    const cat=categoriaResp(resp);
-    if(cat==="HDP"){ n.hdp.n++; if(Number.isFinite(dia))n.hdp.dias.push(dia); }
-    else{ const e=n.esc.get(cat)??n.esc.set(cat,{n:0,dias:[]}).get(cat); e.n++; if(Number.isFinite(dia))e.dias.push(dia); }
+    // Primer nivel (HDP) = GRUPO_ASIGNADO (col J) empieza por HDPREMIUM; el resto son escalados.
+    const esN1=String(fila[iGrupo]).trim().toUpperCase().startsWith("HDPREMIUM");
+    if(esN1){ n.hdp.n++; if(Number.isFinite(dia))n.hdp.dias.push(dia); }
+    else{ const cat=categoriaResp(resp); const e=n.esc.get(cat)??n.esc.set(cat,{n:0,dias:[]}).get(cat); e.n++; if(Number.isFinite(dia))e.dias.push(dia); }
     if(resp==="OTROS"){ const estado=String(fila[iEstado]).trim()||"SIN ESTADO"; const clave=estado+"||"+(diaTxt||"-");
       n.otrosMapa.set(clave,(n.otrosMapa.get(clave)||0)+1); }
   }
@@ -416,10 +429,11 @@ function graficaLinea({clave,titulo,subtitulo,puntos,ancho=620,alto=340}){
 /* ====================== componentes tipo Power BI ====================== */
 const chip=c=>`<span class="chip ${c?"ok":"mal"}">${c?"✓ Cumple":"✗ No cumple"}</span>`;
 const kpi=(l,v,m,extra)=>`<div class="kpi"><div class="kpi-l">${l}</div><div class="kpi-v">${v}</div>${extra||""}${m?`<div class="kpi-m">${m}</div>`:""}</div>`;
-function medidor(valor,meta,menorMejor=false){ if(!(meta>0))return"";
+function medidor(valor,meta,menorMejor=false,color){ const tieneMeta=meta>0;
   const cumple=menorMejor? valor<=meta : valor>=meta;
-  const escala=Math.max(valor,meta)*1.15||1, fp=Math.min(100,valor/escala*100), mp=Math.min(100,meta/escala*100);
-  return `<div class="medidor"><i style="width:${fp.toFixed(1)}%;background:${cumple?"var(--ok)":"var(--mal)"}"></i><s style="left:${mp.toFixed(1)}%"></s></div>`;
+  const escala=(tieneMeta?Math.max(valor,meta):valor)*1.15||1, fp=Math.min(100,valor/escala*100), mp=tieneMeta?Math.min(100,meta/escala*100):0;
+  const c=color||(cumple?"var(--ok)":"var(--mal)");
+  return `<div class="medidor"><i style="width:${fp.toFixed(1)}%;background:${c}"></i>${tieneMeta?`<s style="left:${mp.toFixed(1)}%"></s>`:""}</div>`;
 }
 function llave(alto,color=eTb.cian){ const w=14,m=alto/2;
   return `<svg class="llave-svg" width="${w}" height="${alto}" viewBox="0 0 ${w} ${alto}" xmlns="http://www.w3.org/2000/svg"><path d="M${w-2} 2 Q6 2 6 12 L6 ${(m-12).toFixed(1)} Q6 ${m.toFixed(1)} 0 ${m.toFixed(1)} Q6 ${m.toFixed(1)} 6 ${(m+12).toFixed(1)} L6 ${alto-12} Q6 ${alto-2} ${w-2} ${alto-2}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round"/></svg>`;
@@ -441,15 +455,21 @@ function doblar(arr,max){ if(arr.length<=max)return arr; const top=arr.slice(0,m
   const n=resto.reduce((s,x)=>s+x.n,0), horas=n? resto.reduce((s,x)=>s+x.horas*x.n,0)/n : 0;
   return [...top,{nombre:`Otras (${resto.length})`,n,horas}]; }
 
-function composicionN2(m){
-  const areas=doblar(m.areasN2,6);
-  if(!areas.length)return`<div class="sl-vacio">Sin casos escalados (Nivel 2)</div>`;
+// Un bloque de TMS (Nivel 1 o Nivel 2) con su llave y el desglose por área.
+function nivelComp(label,areas0,tmsHoras,nCasos,cntTxt,vacioTxt){
+  const areas=doblar(areas0,6);
+  if(!areas.length)return`<div class="n2-comp"><div class="n2-head"><div class="s-lbl">${label}</div><div class="s-val">${horasAHms(tmsHoras)}</div><div class="s-meta">${fmt(nCasos)} ${cntTxt}</div></div><div class="sl-vacio">${vacioTxt}</div></div>`;
   const alto=Math.max(46,areas.length*30);
   const maxH=Math.max(1e-9,...areas.map(a=>a.horas));
   return `<div class="n2-comp">
-    <div class="n2-head"><div class="s-lbl">TMS Nivel 2</div><div class="s-val">${horasAHms(m.tmsN2Horas)}</div><div class="s-meta">${fmt(m.n2)} casos escalados</div></div>
+    <div class="n2-head"><div class="s-lbl">${label}</div><div class="s-val">${horasAHms(tmsHoras)}</div><div class="s-meta">${fmt(nCasos)} ${cntTxt}</div></div>
     ${llave(alto)}
     <div class="n2-items">${areas.map(a=>`<div class="n2-item"><span class="n2-nom" title="${a.nombre}">${a.nombre}</span><span class="n2-bar"><i style="width:${(a.horas/maxH*100).toFixed(1)}%"></i></span><b>${horasAHms(a.horas)}</b><small>${fmt(a.n)} casos</small></div>`).join("")}</div></div>`;
+}
+// Primero Nivel 1 (todo lo HDP) y debajo Nivel 2 (todo lo que no es HDP), cada uno con su llave.
+function composicionN2(m){
+  return nivelComp("TMS Nivel 1",m.areasN1,m.tmsN1Horas,m.n1,"casos en HDP","Sin casos en primer nivel (HDP)")
+    + nivelComp("TMS Nivel 2",m.areasN2,m.tmsN2Horas,m.n2,"casos escalados","Sin casos escalados (Nivel 2)");
 }
 function grupoOperativos(titulo,m,metaResol,metaTmsHms){
   if(!m||!m.cerrados)return`<div class="grupo op2"><div class="grupo-tit">${titulo}</div><div class="sl-vacio">Sin casos cerrados en el período</div></div>`;
@@ -467,8 +487,8 @@ function bloqueGeneral(g){
   const a=g.llamadas, ing=g.ingresos;
   const ratio=(a&&ing&&ing.llamada>0)? a.atendidasTotal/ing.llamada : 0;
   const bAt=a?`<div class="op-kpis" style="flex-wrap:wrap">
-      ${kpi(`Nivel de servicio ${chip(a.ns>=80)}`,pct(a.ns),"Meta: 80%",medidor(a.ns,80))}
-      ${kpi(`Nivel de atención ${chip(a.na>=95)}`,pct(a.na),"Meta: 95%",medidor(a.na,95))}
+      ${kpi(`Nivel de servicio ${chip(a.ns>=80)}`,pct(a.ns),"Meta: 80%",medidor(a.ns,80,false,"var(--ok)"))}
+      ${kpi("Nivel de atención",pct(a.na),"",medidor(a.na,0,false,"var(--ok)"))}
       ${kpi("AHT",`${fmt(a.aht,2)} seg`,`${fmt(a.dias)} día(s) medidos`)}
       ${kpi("Ofrecidas",fmt(a.ofrecidasTotal),"Total del período")}
       ${kpi("Atendidas",fmt(a.atendidasTotal),"Total del período")}
@@ -552,7 +572,7 @@ function bloqueBolsaTotal(d){ const b=d.bolsaTotal; if(!b||!b.total)return"";
   const altoCats=Math.max(46,cats.length*30);
   const item=c=>`<div class="n2-item"><span class="n2-nom" title="${c.nombre}">${c.nombre}</span><span class="n2-bar"><i style="width:${(c.n/maxN*100).toFixed(1)}%;background:${eTb.naranja}"></i></span><b>${fmt(c.n)} casos</b><small>${statDias(c.dias)}</small></div>`;
   const altoOuter=96+altoCats;
-  return `<div class="panel w980" data-capture="bolsa-total"><div class="panel-head"><div><div class="panel-title">Bolsa INC total — ${d.segmento}</div><div class="panel-sub">Toda la bolsa (todos los responsables) · RESPONSABLE: ASG_CORP → CPE · FALLA GPON → GPON · FIBRA → COFO</div></div><img class="logo" src="${LOGO_ETB}"/></div>
+  return `<div class="panel w980" data-capture="bolsa-total"><div class="panel-head"><div><div class="panel-title">Bolsa INC total — ${d.segmento}</div><div class="panel-sub">Toda la bolsa · Nivel 1 = grupo asignado HDPREMIUM · escalados por RESPONSABLE: ASG_CORP → CPE · FALLA GPON → GPON · FIBRA → COFO</div></div><img class="logo" src="${LOGO_ETB}"/></div>
     <div class="arbol">
       <div class="arbol-hero"><div class="rn-num">${fmt(b.total)}</div><div class="rn-lbl">casos en bolsa</div></div>
       ${llave(altoOuter)}

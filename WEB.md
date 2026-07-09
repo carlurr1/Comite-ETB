@@ -29,9 +29,12 @@ funciona **offline** (no necesita internet).
   tipo de falla (col BF).
 - **Metas por segmento**: Resolutividad y TMS por segmento (definidas en el objeto `METAS` del HTML,
   iguales Con y Sin COFO); NS 80% / NA 95% generales.
-- **Bolsa**: toda la bolsa; por `RESPONSABLE`: HDP → Nivel 1, ASG_CORP → CPE,
-  FALLA GPON → GPON, FIBRA → COFO, OTROS → bolsa de OTROS (tabla `ESTADO` × `DIAS_ABIERTO`);
-  segmento por NIT (base de clientes → respaldo semáforo).
+- **Bolsa**: toda la bolsa. Segmento por la columna **`MESA`** (MEN + PREMIUM 1..4 → Premium,
+  GOLD 1 → Gold, DISTRITO/ELITE/MAYORISTAS directos; SILVER y SIN MESA se ignoran). Si el
+  archivo no trae `MESA`, respaldo por NIT (base de clientes → semáforo).
+  Nivel 1 = `GRUPO_ASIGNADO` empieza por `HDPREMIUM`; los escalados se categorizan por
+  `RESPONSABLE`: ASG_CORP → CPE, FALLA GPON → GPON, FIBRA → COFO, OTROS → bolsa de OTROS
+  (tabla `ESTADO` × `DIAS_ABIERTO`).
 
 ## Ajustes
 
