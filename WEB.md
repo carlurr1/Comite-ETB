@@ -14,15 +14,19 @@ funciona **offline** (no necesita internet).
    - **Base de clientes** → clasifica la bolsa por segmento (NIT → `AGENTE_SEGUIMIENTO`).
    - **Llamadas (ACD)** (`NS_SOPORTE.xls`) → indicadores de atención (solo bloque General).
    - **Datos base** (opcional) → hojas `Evolutivo` / `CasosMes` / `Desglose`.
+   - **Ingresos / Cierres / Pendientes** → Excel por mes y segmento (INGRESOS/CERRADOS/PENDIENTES);
+     barras por segmento en el bloque General (se usa el último mes con datos).
+   - **Tipificación (del mes)** → Excel con `MES` / `TIEMPO` / `EFECTIVIDAD`; tabla en el General.
 3. Completa el único campo manual: **Corte** (los casos por llamada/correo se cuentan de la BBDD).
 4. **Generar tablero** → bloque **General** + bloques por segmento.
-5. Botón **PNG** en cada bloque (o **Descargar todas**) → imágenes listas para pegar en la presentación.
+5. **Descargar todas** → imágenes listas para pegar en la presentación (sin logo ni botones).
 
 ## Reglas de cálculo (resumen)
 
 - **Atención** (llamadas, solo General): NS/NA/AHT = promedio diario; Ofrecidas/Atendidas = total del período.
-- **Casos por llamada / correo**: conteo de la `BBDD` (`BASE=Ingresos`, `Origen del caso`);
-  correo incluye "correo automático". General y por segmento.
+- **Casos por llamada / correo**: conteo de la `BBDD` (`BASE=Ingresos`, `Origen del caso`),
+  **excluyendo `Estado`=Cancelado**; correo incluye "correo automático". Junto a esto, el
+  **Top 4 origen del caso** (ingresos sin cancelados) reemplaza al ratio de contacto.
 - **Operativos** (semáforo, **Sin y Con COFO**): Resolutividad = `%SNU` y TMS = "Promedio de TMS"
   leídos de las hojas `SN1`/`TMS` (bloque Sin/Con COFO); respaldo calculado de `BBDD`.
   TMS N2 se subdivide por `BaseCerradosAreaSolucion` (col AI) y hay gráfica de TMS por
