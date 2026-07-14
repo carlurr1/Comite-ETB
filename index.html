@@ -153,6 +153,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .n2-bar i{display:block;height:100%;background:var(--cian);border-radius:0 4px 4px 0}
   .n2-item b{font-size:12px;color:var(--navy);white-space:nowrap}
   .n2-item small{font-size:11px;color:var(--gris);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  [data-capture="top-clientes"] .n2-nom{width:150px}
+  [data-capture="top-clientes"] .n2-bar{max-width:110px}
+  [data-capture="top-clientes"] .n2-item small{flex:none;overflow:visible}
   .op-dos{display:flex;gap:14px;margin-top:14px;align-items:stretch}
   .op-dos .grupo{flex:1;min-width:0}
   .grupo.canal{display:block;margin-bottom:14px}
@@ -309,6 +312,10 @@ const CAUSAS_COFO=new Set(["ultimamilla","transmision","redmetroethernet","cable
   "plantatelefonica","fibraaccesoplantaexterna","nodo","redconmutaciontdm","reddatacenter",
   "redinteligente","cabletroncalprimario","primario"]);
 
+// Top 10 clientes más impactados por TMS: ranking por TMS promedio del cliente. Se exige un
+// mínimo de casos (con TMS) por cliente para no rankear por un único caso atípico. Editable.
+const TOP_CLIENTES_N=10, TOP_CLIENTES_MIN=2;
+
 function filasBBDD(wb){ const hoja=wb.SheetNames.find(n=>norm(n)==="bbdd")||wb.SheetNames[0]; return XLSX.utils.sheet_to_json(wb.Sheets[hoja],{defval:""}); }
 
 function analizarBBDD(wb){
@@ -318,6 +325,7 @@ function analizarBBDD(wb){
   const area=f=>txt(col(f,"BaseCerradosAreaSolucion","Area Solucion","AreaSolucion"));
   const falla=f=>kFalla?txt(f[kFalla]):"";
   const origen=f=>col(f,"Origen del caso","Origen");
+  const cliente=f=>txt(col(f,"Nombre de la cuenta","Nombre de la Cuenta","Cliente"))||"(Sin nombre)";
   // Propietario "Integraciones TIBCO": estos casos NO cuentan para el TMS (el tiempo es de un
   // tercero, se descuenta del TMS), pero SÍ siguen contando en conteos y resolutividad (SN1).
   const esPropTIBCO=f=>norm(col(f,"Propietario del caso","Propietario")).includes("tibco");
@@ -351,10 +359,17 @@ function analizarBBDD(wb){
       for(const f of arr){ const k=keyFn(f)||vacio; const o=m.get(k)??m.set(k,{n:0,suma:0,conTms:0}).get(k); o.n++; const t=tms(f); if(t>0){o.suma+=t;o.conTms++;} }
       return[...m.entries()].map(([nombre,o])=>({nombre,n:o.n,horas:o.conTms?o.suma/o.conTms*24:0})).sort((a,b)=>b.horas-a.horas); };
     const promHoras=arr=>{ const v=arr.map(tms).filter(x=>x>0); return v.length? v.reduce((a,b)=>a+b,0)/v.length*24 : 0; };
+    // Top clientes por TMS promedio (peor tiempo). Se cuentan solo casos con TMS>0 (TIBCO ya excluido);
+    // se exige un mínimo de casos (TOP_CLIENTES_MIN) para no rankear por un único caso atípico.
+    const topClientes=arr=>{ const m=new Map();
+      for(const f of arr){ const c=cliente(f); const o=m.get(c)??m.set(c,{n:0,suma:0,conTms:0}).get(c); o.n++; const t=tms(f); if(t>0){o.suma+=t;o.conTms++;} }
+      return[...m.entries()].map(([nombre,o])=>({nombre,n:o.n,conTms:o.conTms,horas:o.conTms?o.suma/o.conTms*24:0}))
+        .filter(c=>c.conTms>=TOP_CLIENTES_MIN).sort((a,b)=>b.horas-a.horas).slice(0,TOP_CLIENTES_N); };
     return { cerrados:g.length, n1:n1.length, n2:n2.length,
       resolCalc:g.length?n1.length/g.length*100:0,
       tmsHoras:promHoras(g), tmsN1Horas:promHoras(n1), tmsN2Horas:promHoras(n2),
-      areasN1:agg(n1,f=>area(f),"(En blanco)"), areasN2:agg(n2,f=>area(f),"(En blanco)"), fallas:agg(g,f=>falla(f),"(Sin tipo de falla)") };
+      areasN1:agg(n1,f=>area(f),"(En blanco)"), areasN2:agg(n2,f=>area(f),"(En blanco)"), fallas:agg(g,f=>falla(f),"(Sin tipo de falla)"),
+      clientes:topClientes(g) };
   };
 
   const res=new Map();
@@ -676,6 +691,32 @@ function bloqueFallas(d){ const o=d.oper; if(!o)return"";
     ${resto>0?`<div class="nota">Se muestran los 10 tipos de falla con mayor TMS; quedan ${resto} adicionales con menor tiempo.</div>`:""}</div>`;
 }
 
+// Top 10 clientes más impactados por TMS (Sin y Con COFO, lado a lado). Ranking por TMS promedio.
+const escHtml=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function listaClientes(arr){
+  const top=arr.slice(0,TOP_CLIENTES_N);
+  const alto=Math.max(46,top.length*30);
+  const maxH=Math.max(1e-9,...top.map(c=>c.horas));
+  return `<div class="n2-comp">
+    <div class="n2-head"><div class="s-lbl" title="${escHtml(top[0].nombre)}">${escHtml(top[0].nombre)}</div><div class="s-val">${horasAHms(top[0].horas)}</div><div class="s-meta">peor TMS del segmento</div></div>
+    ${llave(alto)}
+    <div class="n2-items">${top.map(c=>`<div class="n2-item"><span class="n2-nom" title="${escHtml(c.nombre)}">${escHtml(c.nombre)}</span><span class="n2-bar"><i style="width:${(c.horas/maxH*100).toFixed(1)}%"></i></span><b>${horasAHms(c.horas)}</b><small>${fmt(c.n)} casos</small></div>`).join("")}</div></div>`;
+}
+function colClientes(titulo,arr){
+  const cuerpo = (arr&&arr.length)? listaClientes(arr) : `<div class="sl-vacio">Sin clientes con ${TOP_CLIENTES_MIN}+ casos cerrados con TMS</div>`;
+  return `<div class="grupo op2"><div class="grupo-tit">${titulo}</div>${cuerpo}</div>`;
+}
+function bloqueTopClientes(d){ const o=d.oper; if(!o)return"";
+  const sin=o.sin?.clientes||[], con=o.con?.clientes||[];
+  if(!sin.length && !con.length)return"";
+  return `<div class="panel w980" data-capture="top-clientes"><div class="panel-head"><div><div class="panel-title">Top 10 clientes más impactados por TMS — ${d.segmento}</div></div></div>
+    <div class="op-dos">
+      ${colClientes("Sin COFO",sin)}
+      ${colClientes("Con COFO",con)}
+    </div>
+    <div class="nota">Ranking por TMS promedio del cliente (casos cerrados con TMS; propietario Integraciones TIBCO excluido). Mínimo ${TOP_CLIENTES_MIN} casos por cliente.</div></div>`;
+}
+
 const statDias=arr=>arr.length?`prom ${fmt(prom(arr),1)} · máx ${fmt(Math.max(...arr))} días abiertos`:"sin dato de días";
 function bloqueBolsaTotal(d){ const b=d.bolsaTotal; if(!b||!b.total)return"";
   const catsDe=m=>[...(m||new Map()).entries()].map(([nombre,e])=>({nombre,n:e.n,dias:e.dias})).sort((x,y)=>y.n-x.n);
@@ -708,6 +749,7 @@ function bloqueBolsa(d){ if(!d.bolsa.length)return""; const dias=diasDe(d.bolsa)
 }
 function bloquesSegmento(d){ const b=[["tablero",bloqueSlide(d)]];
   const f=bloqueFallas(d); if(f)b.push(["tms-falla",f]);
+  const tc=bloqueTopClientes(d); if(tc)b.push(["top-clientes",tc]);
   const bt=bloqueBolsaTotal(d); if(bt)b.push(["bolsa-total",bt]);
   if(d.bolsa.length)b.push(["bolsa-inc",bloqueBolsa(d)]);
   return b;

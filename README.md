@@ -61,6 +61,7 @@ binario concreto, exporta `PLAYWRIGHT_CHROMIUM`.
 | **TMS** Sin y Con COFO | Semáforo, hoja `TMS` | leído de la tabla oficial (bloque Sin/Con COFO); respaldo: cálculo desde `BBDD`. En el respaldo, `Propietario del caso` = **Integraciones TIBCO** se descuenta del TMS (no de conteos ni resolutividad) |
 | **TMS Nivel 2 por área** (llaves) | Semáforo `BBDD`, `BaseCerradosAreaSolucion` (col AI) | promedio TMS por área de solución, incluye "(En blanco)" |
 | **TMS por tipo de falla** | Semáforo `BBDD`, tipo de falla (col BF) | promedio TMS por falla, series Sin y Con COFO |
+| **Top 10 clientes por TMS** | Semáforo `BBDD`, `Nombre de la cuenta` | por segmento (Sin/Con COFO): ranking por TMS promedio del cliente, mín. `TOP_CLIENTES_MIN` casos, TIBCO excluido |
 | **Bolsa INC total** | Bolsa completa + Base de clientes | por `RESPONSABLE` (col BM): HDP → Nivel 1; ASG_CORP → CPE, FALLA GPON → GPON, FIBRA → COFO, OTROS; días abiertos prom/máx |
 | **Bolsa OTROS** (estado × días) | Bolsa, `RESPONSABLE=OTROS` | estado × días abiertos, segmento por NIT |
 

@@ -36,6 +36,10 @@ funciona **offline** (no necesita internet).
   En el cálculo de respaldo desde `BBDD`, los casos cuyo `Propietario del caso` es
   **Integraciones TIBCO** se **descuentan del TMS** (su tiempo es de un tercero; ver
   `esPropTIBCO` en el HTML), pero **siguen contando** en conteos y resolutividad (SN1).
+- **Top 10 clientes más impactados por TMS** (por segmento, Sin y Con COFO): ranking por el
+  **TMS promedio** de cada cliente (`Nombre de la cuenta`), sobre casos cerrados con TMS y
+  excluyendo Integraciones TIBCO. Se exige un mínimo de casos por cliente (`TOP_CLIENTES_MIN`
+  en el HTML) para no rankear por un único caso atípico.
 - **Metas por segmento**: Resolutividad y TMS por segmento (definidas en el objeto `METAS` del HTML,
   iguales Con y Sin COFO); NS 80% / NA 95% generales.
 - **Bolsa**: toda la bolsa. Segmento por la columna **`MESA`** (MEN + PREMIUM 1..4 → Premium,
