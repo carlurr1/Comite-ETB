@@ -776,7 +776,7 @@ async function idbGet(k){ try{ const db=await idbOpen(); return await new Promis
    carga solo, sin volver a subirlo. Si SUPABASE.url/anon están vacíos, la nube se DESACTIVA y
    todo funciona igual que antes (solo IndexedDB local, offline). Ver README para crear el
    bucket y sus políticas. La clave anon es pública (va en el cliente); NO usar la service_role. */
-const SUPABASE={ url:"", anon:"", bucket:"comite" };
+const SUPABASE={ url:"https://mdvhgfwzyslllevwptzd.supabase.co", anon:"sb_publishable_-3ETi_faELq1RouSc1oHmA__wnTvtW2", bucket:"comite" };
 const nubeOn=()=> !!(SUPABASE.url && SUPABASE.anon);
 const sbUrl=p=>`${SUPABASE.url}/storage/v1/object/${SUPABASE.bucket}/${p}`;
 const sbHead=extra=>Object.assign({apikey:SUPABASE.anon,Authorization:"Bearer "+SUPABASE.anon},extra||{});
