@@ -18,8 +18,11 @@ funciona **offline** (no necesita internet).
      barras por segmento en el bloque General (se usa el último mes con datos).
    - **Tipificación (del mes)** → Excel con `MES` / `TIEMPO` / `EFECTIVIDAD`; tabla en el General.
 3. Completa el único campo manual: **Corte** (los casos por llamada/correo se cuentan de la BBDD).
-4. **Generar tablero** → bloque **General** + bloques por segmento.
+4. **Generar tablero** → aparece un **menú de pestañas** (General + una por segmento);
+   selecciona la pestaña para ver esa sección. La interfaz usa un estilo *neumórfico*
+   con fondo *aurora* (solo el shell: las imágenes exportadas no cambian).
 5. **Descargar todas** → imágenes listas para pegar en la presentación (sin logo ni botones).
+   Exporta todas las pestañas, no solo la visible.
 
 ## Reglas de cálculo (resumen)
 

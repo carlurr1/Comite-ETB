@@ -35,29 +35,50 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     --navy:#00346D; --navy2:#0E3875; --cian:#0094C0; --cian2:#2AC3F3;
     --naranja:#FF6523; --linea:#2E6E8E; --dorado:#8A7D1E; --gris:#7C8894;
     --grisc:#E6ECEE; --texto:#1E2124; --ok:#1f8a4c; --mal:#c0392b;
+    /* neumorfismo (solo shell: fondo, tarjeta de carga y menú; NO toca los bloques del tablero) */
+    --neu:#e8edf3; --neu-lo:#c7d0dc; --neu-hi:#ffffff;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--texto);background:#f0f3f5;padding:20px}
+  body{font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--texto);background:var(--neu);padding:20px;position:relative}
+  /* Aurora UI: capa de fondo suave detrás del contenido (z-index:-1, no afecta las capturas PNG) */
+  .aurora{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden;filter:blur(72px);opacity:.55;
+    background:
+      radial-gradient(38% 44% at 16% 20%, rgba(0,148,192,.55), transparent 70%),
+      radial-gradient(34% 42% at 84% 14%, rgba(42,195,243,.48), transparent 70%),
+      radial-gradient(46% 46% at 78% 84%, rgba(0,52,109,.42), transparent 70%),
+      radial-gradient(42% 42% at 22% 88%, rgba(124,136,148,.28), transparent 70%);
+    animation:auroraFlow 26s ease-in-out infinite alternate}
+  @keyframes auroraFlow{from{transform:translate3d(-2%,-1%,0) scale(1)}to{transform:translate3d(2%,2%,0) scale(1.08)}}
+  @media (prefers-reduced-motion:reduce){.aurora{animation:none}}
   h1{color:var(--navy);font-size:22px;margin-bottom:4px}
   .sub{color:var(--gris);font-size:14px;margin-bottom:18px}
-  .panel-carga{background:#fff;border-radius:10px;padding:18px 22px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:18px;max-width:1100px}
+  .panel-carga{background:var(--neu);border-radius:20px;padding:22px 26px;box-shadow:9px 9px 22px var(--neu-lo),-9px -9px 22px var(--neu-hi);margin-bottom:18px;max-width:1100px}
   .grid-inputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:10px}
-  .campo{border:1px dashed #b7c4cc;border-radius:8px;padding:12px 14px;background:#f8fafb}
+  .campo{border:0;border-radius:14px;padding:14px 16px;background:var(--neu);box-shadow:inset 4px 4px 9px var(--neu-lo),inset -4px -4px 9px var(--neu-hi)}
   .campo label{display:block;font-weight:700;color:var(--navy);font-size:13.5px;margin-bottom:6px}
   .campo .hint{font-size:12px;color:var(--gris);margin-bottom:8px}
   .campo input[type=file]{font-size:12.5px;width:100%}
   .campo .ok{color:var(--ok);font-size:12px;font-weight:700;margin-top:6px}
   .manual{display:flex;flex-wrap:wrap;gap:14px;margin-top:14px}
   .manual label{font-size:12.5px;font-weight:700;color:var(--navy);display:flex;flex-direction:column;gap:4px}
-  .manual input{padding:6px 8px;border:1px solid #b7c4cc;border-radius:6px;font-size:13px;min-width:120px}
+  .manual input{padding:8px 12px;border:0;border-radius:10px;font-size:13px;min-width:120px;background:var(--neu);color:var(--texto);box-shadow:inset 3px 3px 7px var(--neu-lo),inset -3px -3px 7px var(--neu-hi)}
   .acciones{margin-top:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-  button.primario{background:var(--navy);color:#fff;border:0;border-radius:8px;padding:11px 20px;font-size:14px;font-weight:700;cursor:pointer}
-  button.primario:hover{background:var(--navy2)}
-  button.sec{background:#fff;color:var(--navy);border:1.5px solid var(--navy);border-radius:7px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer}
-  button.sec:hover{background:#eef4fa}
+  button.primario{background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;border:0;border-radius:12px;padding:11px 22px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:6px 6px 14px var(--neu-lo),-6px -6px 14px var(--neu-hi);transition:.15s}
+  button.primario:hover{filter:brightness(1.08)}
+  button.primario:active{box-shadow:inset 4px 4px 9px rgba(0,0,0,.28)}
+  button.sec{background:var(--neu);color:var(--navy);border:0;border-radius:11px;padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer;box-shadow:5px 5px 12px var(--neu-lo),-5px -5px 12px var(--neu-hi);transition:.15s}
+  button.sec:hover{color:var(--cian)}
+  button.sec:active{box-shadow:inset 4px 4px 9px var(--neu-lo),inset -4px -4px 9px var(--neu-hi)}
   .aviso{font-size:12.5px;color:var(--gris)}
   .aviso.err{color:var(--mal);font-weight:700}
-  .seg-tit{color:var(--navy);font-size:20px;font-weight:800;margin:26px 0 6px;border-bottom:2px solid var(--grisc);padding-bottom:6px}
+  /* Menú de pestañas (neumórfico): General + una por segmento */
+  .tabs{display:none;flex-wrap:wrap;gap:12px;align-items:center;margin:22px 0 10px;padding:12px;border-radius:20px;background:var(--neu);box-shadow:inset 3px 3px 8px var(--neu-lo),inset -3px -3px 8px var(--neu-hi);max-width:1100px}
+  .tab{border:0;cursor:pointer;padding:10px 20px;border-radius:13px;font-size:14px;font-weight:800;color:var(--navy);background:var(--neu);box-shadow:5px 5px 11px var(--neu-lo),-5px -5px 11px var(--neu-hi);transition:.16s}
+  .tab:hover{color:var(--cian)}
+  .tab.activa{color:var(--cian);background:linear-gradient(135deg,rgba(0,148,192,.12),rgba(0,52,109,.07));box-shadow:inset 4px 4px 9px var(--neu-lo),inset -4px -4px 9px var(--neu-hi)}
+  .seccion.oculta{display:none}
+  #salida.exportando .seccion.oculta{display:block}
+  .seg-tit{color:var(--navy);font-size:20px;font-weight:800;margin:8px 0 6px;padding-bottom:6px;border-bottom:2px solid rgba(0,52,109,.14)}
   .bloque-wrap{position:relative;display:inline-block;vertical-align:top;margin:10px}
   .bloque-wrap .btnpng{position:absolute;top:16px;right:16px;z-index:5;opacity:.85}
   /* ---- estilo del tablero (idéntico a la herramienta) ---- */
@@ -180,6 +201,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 </style>
 </head>
 <body>
+<div class="aurora"></div>
 <h1>Tablero de comité — Soporte eTb</h1>
 <div class="sub">Sube los archivos de la semana y genera las imágenes por segmento, listas para copiar/pegar en la presentación.</div>
 
@@ -235,6 +257,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   </div>
 </div>
 
+<div id="tabs" class="tabs"></div>
 <div id="salida"></div>
 
 <script>
@@ -850,18 +873,30 @@ function generar(){
 }
 
 function render(general,segmentos){
-  const cont=document.getElementById("salida"); cont.innerHTML="";
-  const agregar=(titulo,bloques)=>{
-    const tit=document.createElement("div"); tit.className="seg-tit"; tit.textContent=titulo; cont.appendChild(tit);
-    for(const [clave,html] of bloques){ if(!html)continue;
+  const cont=document.getElementById("salida"); cont.innerHTML=""; cont.classList.remove("exportando");
+  const tabs=document.getElementById("tabs"); tabs.innerHTML="";
+  const secciones=[];
+  const agregar=(clave,titulo,bloques)=>{
+    const items=bloques.filter(([,html])=>html); if(!items.length)return;
+    const sec=document.createElement("section"); sec.className="seccion"; sec.dataset.seccion=clave;
+    const tit=document.createElement("div"); tit.className="seg-tit"; tit.textContent=titulo; sec.appendChild(tit);
+    for(const [ck,html] of items){
       const wrap=document.createElement("div"); wrap.className="bloque-wrap";
       wrap.innerHTML=html;
-      const bloque=wrap.querySelector("[data-capture]");
-      const nombre=`${claveSegmento(titulo)}_${clave}.png`;
-      bloque.setAttribute("data-nombre",nombre);
-      cont.appendChild(wrap); } };
-  agregar("General",[["tablero",bloqueGeneral(general)]]);
-  for(const s of segmentos) agregar(s.data.segmento,bloquesSegmento(s.data));
+      wrap.querySelector("[data-capture]").setAttribute("data-nombre",`${claveSegmento(titulo)}_${ck}.png`);
+      sec.appendChild(wrap); }
+    cont.appendChild(sec); secciones.push({clave,titulo}); };
+  agregar("general","General",[["tablero",bloqueGeneral(general)]]);
+  for(const s of segmentos) agregar(s.clave,s.data.segmento,bloquesSegmento(s.data));
+  // menú de pestañas: una por sección con contenido
+  for(const s of secciones){ const b=document.createElement("button"); b.className="tab"; b.textContent=s.titulo; b.dataset.tab=s.clave;
+    b.addEventListener("click",()=>activarTab(s.clave)); tabs.appendChild(b); }
+  tabs.style.display=secciones.length?"flex":"none";
+  if(secciones.length)activarTab(secciones[0].clave);
+}
+function activarTab(clave){
+  document.querySelectorAll("#salida .seccion").forEach(s=>s.classList.toggle("oculta",s.dataset.seccion!==clave));
+  document.querySelectorAll("#tabs .tab").forEach(t=>t.classList.toggle("activa",t.dataset.tab===clave));
 }
 
 /* ====================== exportar PNG ====================== */
@@ -879,8 +914,11 @@ async function bloqueABlob(el,escala=3){
 async function descargarPng(el,nombre){ const blob=await bloqueABlob(el); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=nombre; a.click(); URL.revokeObjectURL(a.href); }
 
 document.getElementById("btn-generar").addEventListener("click",generar);
-document.getElementById("btn-todo").addEventListener("click",async()=>{ const bs=document.querySelectorAll("#salida .bloque-wrap [data-capture]");
-  for(const b of bs){ await descargarPng(b, b.getAttribute("data-nombre")||"bloque.png"); await new Promise(r=>setTimeout(r,180)); } });
+document.getElementById("btn-todo").addEventListener("click",async()=>{ const cont=document.getElementById("salida");
+  cont.classList.add("exportando"); // revela todas las secciones (incluidas las de pestañas no activas) para poder capturarlas
+  try{ const bs=cont.querySelectorAll(".bloque-wrap [data-capture]");
+    for(const b of bs){ await descargarPng(b, b.getAttribute("data-nombre")||"bloque.png"); await new Promise(r=>setTimeout(r,180)); } }
+  finally{ cont.classList.remove("exportando"); } });
 </script>
 </body>
 </html>
