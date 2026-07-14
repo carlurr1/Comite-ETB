@@ -771,14 +771,46 @@ function idbOpen(){ return new Promise((res,rej)=>{ const q=indexedDB.open(IDB_D
 async function idbPut(k,v){ try{ const db=await idbOpen(); await new Promise((res,rej)=>{ const t=db.transaction(IDB_STORE,"readwrite"); t.objectStore(IDB_STORE).put(v,k); t.oncomplete=res; t.onerror=()=>rej(t.error); }); }catch(e){ console.warn("No se pudo guardar",k,e); } }
 async function idbGet(k){ try{ const db=await idbOpen(); return await new Promise((res,rej)=>{ const t=db.transaction(IDB_STORE,"readonly"); const r=t.objectStore(IDB_STORE).get(k); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }catch(e){ return null; } }
 
+/* ---- Sincronización en la nube (Supabase Storage): COMPARTIDO, el último archivo gana ----
+   Cuando alguien sube un archivo se guarda en el bucket y cualquiera que abra la página lo
+   carga solo, sin volver a subirlo. Si SUPABASE.url/anon están vacíos, la nube se DESACTIVA y
+   todo funciona igual que antes (solo IndexedDB local, offline). Ver README para crear el
+   bucket y sus políticas. La clave anon es pública (va en el cliente); NO usar la service_role. */
+const SUPABASE={ url:"", anon:"", bucket:"comite" };
+const nubeOn=()=> !!(SUPABASE.url && SUPABASE.anon);
+const sbUrl=p=>`${SUPABASE.url}/storage/v1/object/${SUPABASE.bucket}/${p}`;
+const sbHead=extra=>Object.assign({apikey:SUPABASE.anon,Authorization:"Bearer "+SUPABASE.anon},extra||{});
+async function sbSubir(path,buf,tipo){ const r=await fetch(sbUrl(path),{method:"POST",headers:sbHead({"Content-Type":tipo||"application/octet-stream","x-upsert":"true"}),body:buf}); if(!r.ok)throw new Error("nube subir "+r.status); }
+async function sbBajar(path){ const r=await fetch(sbUrl(path),{headers:sbHead(),cache:"no-store"}); if(r.status===404||r.status===400)return null; if(!r.ok)throw new Error("nube bajar "+r.status); return await r.arrayBuffer(); }
+async function sbBajarJSON(path){ try{ const b=await sbBajar(path); return b?JSON.parse(new TextDecoder().decode(b)):null; }catch(e){ return null; } }
+async function sbMetaGuardar(patch){ const meta=await sbBajarJSON("meta.json")||{names:{}}; meta.names=Object.assign(meta.names||{},patch.names||{}); if("corte" in patch)meta.corte=patch.corte;
+  await sbSubir("meta.json",new TextEncoder().encode(JSON.stringify(meta)),"application/json"); return meta; }
+
+function cargarSlot(c,buf,nombre,sufijo){ try{ archivos[c]=XLSX.read(buf,{type:"array"}); const el=document.getElementById("ok-"+c); if(el)el.textContent="✓ "+(nombre||"archivo")+(sufijo?" "+sufijo:""); return true; }catch(e){ return false; } }
+
 function bindInput(id,clave){ const el=document.getElementById(id); if(!el)return;
   el.addEventListener("change",async e=>{ const f=e.target.files[0]; if(!f)return;
     const buf=await f.arrayBuffer(); archivos[clave]=XLSX.read(buf,{type:"array"});
-    document.getElementById("ok-"+clave).textContent="✓ "+f.name;
-    idbPut(clave,{name:f.name,buf}); }); }
+    const ok=document.getElementById("ok-"+clave); ok.textContent="✓ "+f.name;
+    idbPut(clave,{name:f.name,buf});
+    if(nubeOn()){ ok.textContent="✓ "+f.name+" (subiendo…)";
+      try{ await sbSubir(clave+".xlsx",buf); await sbMetaGuardar({names:{[clave]:f.name}}); ok.textContent="✓ "+f.name+" (en la nube)"; }
+      catch(err){ console.warn("nube",err); ok.textContent="✓ "+f.name+" (local; nube falló)"; } }
+  }); }
 SLOTS.forEach(c=>bindInput("f-"+c,c));
 
-(async()=>{ for(const c of SLOTS){ const rec=await idbGet(c); if(rec&&rec.buf){ try{ archivos[c]=XLSX.read(rec.buf,{type:"array"}); const el=document.getElementById("ok-"+c); if(el)el.textContent="✓ "+rec.name+" (guardado)"; }catch(e){} } } })();
+(async()=>{
+  // 1) restaurar de IndexedDB (instantáneo, offline)
+  for(const c of SLOTS){ const rec=await idbGet(c); if(rec&&rec.buf) cargarSlot(c,rec.buf,rec.name,"(guardado)"); }
+  // 2) si hay nube, traer lo compartido (lo último que subió alguien) y refrescar cache local
+  if(nubeOn()){ const meta=await sbBajarJSON("meta.json")||{names:{}};
+    const mc=document.getElementById("m-corte"); if(mc&&!mc.value.trim()&&meta.corte)mc.value=meta.corte;
+    for(const c of SLOTS){ try{ const buf=await sbBajar(c+".xlsx"); if(buf){ const nombre=(meta.names&&meta.names[c])||c; if(cargarSlot(c,buf,nombre,"(nube)"))idbPut(c,{name:nombre,buf}); } }catch(e){ console.warn("nube",c,e); } }
+  }
+})();
+
+// El corte también se comparte (se guarda en meta.json de la nube al cambiarlo).
+(()=>{ const mc=document.getElementById("m-corte"); if(mc)mc.addEventListener("change",()=>{ if(nubeOn())sbMetaGuardar({corte:mc.value.trim()}).catch(()=>{}); }); })();
 
 function segmentoBase(clave,nombre){ return { segmento:nombre, oper:null, bolsaTotal:null,
   indicadores:{ corte:document.getElementById("m-corte").value.trim(),

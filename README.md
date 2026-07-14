@@ -74,6 +74,35 @@ binario concreto, exporta `PLAYWRIGHT_CHROMIUM`.
   "COFO"/"FIBRA".
 - El CLI (`cli/`) conserva la versión anterior del tablero; la web es la vigente.
 
+## Nube (Supabase) — compartir la carga entre todos
+
+Por defecto cada quien guarda sus archivos solo en su navegador (IndexedDB). Si configuras
+**Supabase Storage**, la carga se comparte: cuando **alguien** sube un archivo queda en la nube
+y **cualquiera** que abra la página lo carga solo, sin volver a subirlo (modelo *el último gana*).
+
+**Activarlo:**
+
+1. Crea un proyecto en [supabase.com](https://supabase.com) (plan gratis). En **Settings → API**
+   copia el **Project URL** y la **anon public key**.
+2. En **Storage** crea un bucket llamado `comite`. En **SQL Editor** corre las políticas:
+   ```sql
+   insert into storage.buckets (id, name) values ('comite','comite') on conflict do nothing;
+   create policy "comite lee"      on storage.objects for select using (bucket_id='comite');
+   create policy "comite inserta"  on storage.objects for insert with check (bucket_id='comite');
+   create policy "comite actualiza"on storage.objects for update using (bucket_id='comite');
+   ```
+3. En `index.html`, en el objeto `SUPABASE` (sección `<script>`), pon tu `url` y `anon`:
+   ```js
+   const SUPABASE={ url:"https://xxxxx.supabase.co", anon:"eyJ...", bucket:"comite" };
+   ```
+
+**Seguridad:** la `anon key` es pública (va en el cliente, es lo normal en Supabase). Con las
+políticas de arriba, cualquiera que tenga la URL de la página puede leer/reemplazar los archivos
+del bucket `comite`. Para una herramienta interna del comité suele ser aceptable; si quieres
+restringir escritura, se puede exigir login y ajustar las políticas. Los datos se guardan como
+archivos `.xlsx` (uno por tipo) más un `meta.json` con nombres y el corte. Si dejas `SUPABASE`
+vacío, la nube queda **desactivada** y todo funciona offline igual que antes.
+
 ## Estructura
 
 ```
