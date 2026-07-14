@@ -318,7 +318,10 @@ function analizarBBDD(wb){
   const area=f=>txt(col(f,"BaseCerradosAreaSolucion","Area Solucion","AreaSolucion"));
   const falla=f=>kFalla?txt(f[kFalla]):"";
   const origen=f=>col(f,"Origen del caso","Origen");
-  const tms=f=>num(col(f,"TMS"));
+  // Propietario "Integraciones TIBCO": estos casos NO cuentan para el TMS (el tiempo es de un
+  // tercero, se descuenta del TMS), pero SÍ siguen contando en conteos y resolutividad (SN1).
+  const esPropTIBCO=f=>norm(col(f,"Propietario del caso","Propietario")).includes("tibco");
+  const tms=f=>esPropTIBCO(f)?0:num(col(f,"TMS")); // TMS=0 => excluido de los promedios (filtro x>0)
   // COFO por causa (Categoría de Resolución Nivel 2) de infraestructura/fibra; respaldo columna COFO=1.
   const causa=f=>col(f,"Categoria de Resolucion Nivel 2","Categoria de Resolucion Nivel2");
   const esCOFO=f=>CAUSAS_COFO.has(norm(causa(f)))||String(col(f,"COFO")).trim()==="1";

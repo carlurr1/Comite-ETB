@@ -33,6 +33,9 @@ funciona **offline** (no necesita internet).
   última milla, transmisión, red metro ethernet, cable troncal, planta…; ver `CAUSAS_COFO` en el HTML),
   no por la columna `COFO` (que casi no marca casos). TMS N1 y N2 se subdividen por
   `BaseCerradosAreaSolucion` y hay gráfica de TMS por tipo de falla.
+  En el cálculo de respaldo desde `BBDD`, los casos cuyo `Propietario del caso` es
+  **Integraciones TIBCO** se **descuentan del TMS** (su tiempo es de un tercero; ver
+  `esPropTIBCO` en el HTML), pero **siguen contando** en conteos y resolutividad (SN1).
 - **Metas por segmento**: Resolutividad y TMS por segmento (definidas en el objeto `METAS` del HTML,
   iguales Con y Sin COFO); NS 80% / NA 95% generales.
 - **Bolsa**: toda la bolsa. Segmento por la columna **`MESA`** (MEN + PREMIUM 1..4 → Premium,

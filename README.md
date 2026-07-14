@@ -58,7 +58,7 @@ binario concreto, exporta `PLAYWRIGHT_CHROMIUM`.
 | **Atención** (Ofrecidas, Atendidas) — solo General | Llamadas ACD | total del período |
 | **Casos por llamada / correo** (General y por segmento) | Semáforo `BBDD`, `Origen del caso` (col V), `BASE=Ingresos` | teléfono/llamada → llamada; correo **y** correo automático → correo |
 | **Resolutividad** (`%SNU`) Sin y Con COFO | Semáforo, hoja `SN1` | leído de la tabla oficial (bloque Sin/Con COFO); respaldo: cálculo desde `BBDD` |
-| **TMS** Sin y Con COFO | Semáforo, hoja `TMS` | leído de la tabla oficial (bloque Sin/Con COFO); respaldo: cálculo desde `BBDD` |
+| **TMS** Sin y Con COFO | Semáforo, hoja `TMS` | leído de la tabla oficial (bloque Sin/Con COFO); respaldo: cálculo desde `BBDD`. En el respaldo, `Propietario del caso` = **Integraciones TIBCO** se descuenta del TMS (no de conteos ni resolutividad) |
 | **TMS Nivel 2 por área** (llaves) | Semáforo `BBDD`, `BaseCerradosAreaSolucion` (col AI) | promedio TMS por área de solución, incluye "(En blanco)" |
 | **TMS por tipo de falla** | Semáforo `BBDD`, tipo de falla (col BF) | promedio TMS por falla, series Sin y Con COFO |
 | **Bolsa INC total** | Bolsa completa + Base de clientes | por `RESPONSABLE` (col BM): HDP → Nivel 1; ASG_CORP → CPE, FALLA GPON → GPON, FIBRA → COFO, OTROS; días abiertos prom/máx |
