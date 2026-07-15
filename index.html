@@ -387,10 +387,10 @@ function analizarBBDD(wb){
 
   const porSeg=new Map();
   const segDe=f=>{ const s=txt(col(f,"Segmento")); return s?claveSegmento(s):""; };
-  const nodo=k=>porSeg.get(k)??porSeg.set(k,{segmento:"",cerradosSin:[],cerradosCon:[],ingLlamada:0,ingCorreo:0,origen:new Map(),ingresosRows:[]}).get(k);
+  const nodo=k=>porSeg.get(k)??porSeg.set(k,{segmento:"",cerradosSin:[],cerradosCon:[],cerradosCofo:[],ingLlamada:0,ingCorreo:0,origen:new Map(),ingresosRows:[]}).get(k);
 
   for(const f of cerrados){ const k=segDe(f); if(!k)continue; const n=nodo(k); n.segmento=n.segmento||txt(col(f,"Segmento"));
-    n.cerradosCon.push(f); if(!esCOFO(f))n.cerradosSin.push(f); }
+    n.cerradosCon.push(f); if(esCOFO(f))n.cerradosCofo.push(f); else n.cerradosSin.push(f); }
 
   let genLl=0,genCor=0; const genOrigen=new Map();
   const cuenta=(m,key)=>m.set(key,(m.get(key)||0)+1);
@@ -406,6 +406,8 @@ function analizarBBDD(wb){
     return[...m.entries()].map(([nombre,n])=>({nombre,n})).sort((a,b)=>b.n-a.n).slice(0,TOP_CLIENTES_N); };
   const impDist=arr=>{ const m=new Map(); let tot=0; for(const f of arr){ if(esWO(f))continue; const k=imputab(f); if(!k)continue; cuenta(m,k); tot++; }
     return { total:tot, items:[...m.entries()].map(([nombre,n])=>({nombre,n})).sort((a,b)=>b.n-a.n) }; };
+  const topCatResolDe=arr=>{ const m=new Map(); for(const f of arr){ const k=catResol(f); if(k)cuenta(m,k); }
+    return[...m.entries()].map(([nombre,n])=>({nombre,n})).sort((a,b)=>b.n-a.n).slice(0,5); };
   const diaKey=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
   const serieIngCierre=(ingArr,cerrArr)=>{ const dias=new Map(); const toca=k=>dias.get(k)??dias.set(k,{ing:0,cie:0}).get(k);
     for(const f of ingArr){ const a=apertura(f); if(a)toca(diaKey(a)).ing++; }
@@ -438,7 +440,7 @@ function analizarBBDD(wb){
   const res=new Map();
   for(const[k,n] of porSeg) res.set(k,{ segmento:n.segmento, sin:resumen(n.cerradosSin), con:resumen(n.cerradosCon), ingLlamada:n.ingLlamada, ingCorreo:n.ingCorreo, origen:topOrigen(n.origen),
     tmbHoras:promTMB(n.cerradosCon), masivos:contarMasivos(n.cerradosCon), clientesMasivos:topClientesMasivos(n.cerradosCon),
-    imput:impDist(n.cerradosCon), ingCierreSerie:serieIngCierre(n.ingresosRows,n.cerradosCon) });
+    imput:impDist(n.cerradosCon), ingCierreSerie:serieIngCierre(n.ingresosRows,n.cerradosCon), catResolCofo:topCatResolDe(n.cerradosCofo) });
   return { porSeg:res, general:{llamada:genLl, correo:genCor, origen:topOrigen(genOrigen)} };
 }
 
@@ -788,11 +790,11 @@ function colCat(titulo,arr){
   return `<div class="grupo op2"><div class="grupo-tit">${titulo}</div><ol class="tc-lista">${listaRank(arr,x=>fmt(x.n),"casos")}</ol></div>`;
 }
 function bloqueCatResol(d){ const o=d.oper; if(!o)return"";
-  const sin=o.sin?.catResol||[], con=o.con?.catResol||[];
-  if(!sin.length&&!con.length)return"";
+  const sin=o.sin?.catResol||[], cofo=o.catResolCofo||[];
+  if(!sin.length&&!cofo.length)return"";
   return `<div class="panel w980" data-capture="cat-resol"><div class="panel-head"><div><div class="panel-title">Top 5 categoría de resolución — ${d.segmento}</div></div></div>
-    <div class="op-dos">${colCat("Sin COFO",sin)}${colCat("Con COFO",con)}</div>
-    <div class="nota">Categoría de resolución (nivel de detalle) con más casos cerrados en el período.</div></div>`;
+    <div class="op-dos">${colCat("Sin COFO (sin fibra)",sin)}${colCat("COFO (fibra)",cofo)}</div>
+    <div class="nota">Split real: <b>COFO</b> = fallas de fibra/planta externa (cortes, aperturas, cable, hilo…); las demás causas van en <b>Sin COFO</b>.</div></div>`;
 }
 
 // 2) Ingresos vs Cierres — área suave estilo Power BI, doble eje X (día + semana), etiquetas intercaladas.
