@@ -973,27 +973,33 @@ async function sbBajarJSON(path){ try{ const b=await sbBajar(path); return b?JSO
 async function sbMetaGuardar(patch){ const meta=await sbBajarJSON("meta.json")||{names:{}}; meta.names=Object.assign(meta.names||{},patch.names||{}); if("corte" in patch)meta.corte=patch.corte;
   await sbSubir("meta.json",new TextEncoder().encode(JSON.stringify(meta)),"application/json"); return meta; }
 
-function cargarSlot(c,buf,nombre,sufijo){ try{ archivos[c]=XLSX.read(buf,{type:"array"}); const el=document.getElementById("ok-"+c); if(el)el.textContent="✓ "+(nombre||"archivo")+(sufijo?" "+sufijo:""); return true; }catch(e){ return false; } }
+// Carga perezosa: al abrir/cargar solo se GUARDA el buffer (sin parsear); el XLSX.read pesado
+// ocurre recién al Generar. Así abrir la página nunca se congela por re-parsear lo guardado.
+const bufs={}; // slot -> {buf,name}
+function registrarSlot(c,buf,nombre,sufijo){ bufs[c]={buf,name:nombre||"archivo"}; delete archivos[c];
+  const el=document.getElementById("ok-"+c); if(el)el.textContent="✓ "+(nombre||"archivo")+(sufijo?" "+sufijo:""); }
+function tiene(c){ return !!bufs[c]; }
+// Opciones de lectura rápidas: sin fórmulas/formato/estilos y en modo denso (~40% menos tiempo).
+const OPTS_XLSX={type:"array",dense:true,cellFormula:false,cellHTML:false,cellText:false,cellNF:false,cellStyles:false};
+function wb(c){ if(!bufs[c])return null; if(!archivos[c])archivos[c]=XLSX.read(bufs[c].buf,OPTS_XLSX); return archivos[c]; }
 
 function bindInput(id,clave){ const el=document.getElementById(id); if(!el)return;
   el.addEventListener("change",async e=>{ const f=e.target.files[0]; if(!f)return;
-    const buf=await f.arrayBuffer(); archivos[clave]=XLSX.read(buf,{type:"array"});
-    const ok=document.getElementById("ok-"+clave); ok.textContent="✓ "+f.name;
+    const buf=await f.arrayBuffer(); registrarSlot(clave,buf,f.name);
     idbPut(clave,{name:f.name,buf});
-    if(nubeOn()){ ok.textContent="✓ "+f.name+" (subiendo…)";
+    if(nubeOn()){ const ok=document.getElementById("ok-"+clave); ok.textContent="✓ "+f.name+" (subiendo…)";
       try{ await sbSubir(clave+".xlsx",buf); await sbMetaGuardar({names:{[clave]:f.name}}); ok.textContent="✓ "+f.name+" (en la nube)"; }
       catch(err){ console.warn("nube",err); ok.textContent="✓ "+f.name+" (local; nube falló)"; } }
   }); }
 SLOTS.forEach(c=>bindInput("f-"+c,c));
 
 (async()=>{
-  // 1) restaurar de IndexedDB (instantáneo, offline)
-  for(const c of SLOTS){ const rec=await idbGet(c); if(rec&&rec.buf) cargarSlot(c,rec.buf,rec.name,"(guardado)"); }
-  // 2) si hay nube, traer lo compartido (lo último que subió alguien) y refrescar cache local
+  // 1) restaurar de IndexedDB (solo guarda el buffer; no parsea → apertura instantánea)
+  for(const c of SLOTS){ const rec=await idbGet(c); if(rec&&rec.buf) registrarSlot(c,rec.buf,rec.name,"(guardado)"); }
+  // 2) si hay nube, traer lo compartido en paralelo (descarga; el parseo sigue siendo perezoso)
   if(nubeOn()){ const meta=await sbBajarJSON("meta.json")||{names:{}};
     const mc=document.getElementById("m-corte"); if(mc&&!mc.value.trim()&&meta.corte)mc.value=meta.corte;
-    for(const c of SLOTS){ try{ const buf=await sbBajar(c+".xlsx"); if(buf){ const nombre=(meta.names&&meta.names[c])||c; if(cargarSlot(c,buf,nombre,"(nube)"))idbPut(c,{name:nombre,buf}); } }catch(e){ console.warn("nube",c,e); } }
-  }
+    await Promise.all(SLOTS.map(async c=>{ try{ const buf=await sbBajar(c+".xlsx"); if(buf){ const nombre=(meta.names&&meta.names[c])||c; registrarSlot(c,buf,nombre,"(nube)"); idbPut(c,{name:nombre,buf}); } }catch(e){ console.warn("nube",c,e); } })); }
 })();
 
 // El corte también se comparte (se guarda en meta.json de la nube al cambiarlo).
@@ -1007,27 +1013,30 @@ function segmentoBase(clave,nombre){ return { segmento:nombre, oper:null, bolsaT
 function series(filas,seg,etAlias,valAlias){ return filas.filter(r=>norm(txt(col(r,"Segmento")))===norm(seg)).map(r=>({etiqueta:txt(col(r,...etAlias)),valor:num(col(r,...valAlias))})); }
 
 function generar(){
-  const aviso=document.getElementById("aviso"); aviso.className="aviso"; aviso.textContent="Procesando…";
+  const aviso=document.getElementById("aviso"); aviso.className="aviso"; aviso.textContent="Procesando… (puede tardar unos segundos)";
+  document.getElementById("btn-generar").disabled=true;
+  // Ceder el hilo para que se pinte "Procesando…" antes del parseo pesado del Excel.
+  setTimeout(()=>{
   try{
     const corte=document.getElementById("m-corte").value.trim();
     const general={corte,llamadas:null,ingresos:null,icp:null,tipif:null};
     const segmentos=SEGMENTOS.map(([k,n])=>({clave:k,data:segmentoBase(k,n)}));
 
     // 4) llamadas (ACD) → SOLO bloque general
-    if(archivos.llamadas){ const m=leerLlamadas(archivos.llamadas); general.llamadas=[...m.values()][0]||null; }
+    if(tiene("llamadas")){ const m=leerLlamadas(wb("llamadas")); general.llamadas=[...m.values()][0]||null; }
 
     // 6) ingresos/cierres/pendientes · 7) tipificación → bloque general
-    if(archivos.icp){ general.icp=leerICP(archivos.icp); }
-    if(archivos.tipif){ general.tipif=leerTipif(archivos.tipif); }
+    if(tiene("icp")){ general.icp=leerICP(wb("icp")); }
+    if(tiene("tipif")){ general.tipif=leerTipif(wb("tipif")); }
 
     // 1) semáforo → operativos por segmento (Sin/Con COFO) + ingresos por canal
-    if(archivos.semaforo){ const sem=leerSemaforo(archivos.semaforo); general.ingresos=sem.general;
+    if(tiene("semaforo")){ const sem=leerSemaforo(wb("semaforo")); general.ingresos=sem.general;
       for(const s of segmentos) s.data.oper=sem.porSeg.get(s.clave)||null; }
 
     // 2+3) bolsa completa con base de clientes + respaldo semáforo
     let notaBolsa="";
-    if(archivos.bolsa){ const clientes=archivos.clientes?leerClientes(archivos.clientes):new Map(); const resp=archivos.semaforo?mapaNitSegmento(archivos.semaforo):new Map();
-      const resolver=nit=>clientes.get(nit)||resp.get(nit); const {porSeg,total,clas,sin}=leerBolsa(archivos.bolsa,resolver);
+    if(tiene("bolsa")){ const clientes=tiene("clientes")?leerClientes(wb("clientes")):new Map(); const resp=tiene("semaforo")?mapaNitSegmento(wb("semaforo")):new Map();
+      const resolver=nit=>clientes.get(nit)||resp.get(nit); const {porSeg,total,clas,sin}=leerBolsa(wb("bolsa"),resolver);
       for(const s of segmentos){ const x=porSeg.get(s.clave); if(x){ s.data.bolsaTotal=x; s.data.bolsa=x.otros; } }
       notaBolsa=` · Bolsa: ${clas}/${total} clasificados (${sin} sin segmento)`; }
 
@@ -1035,6 +1044,8 @@ function generar(){
     aviso.className="aviso"; aviso.textContent="Listo."+notaBolsa;
     document.getElementById("btn-todo").style.display="inline-block";
   }catch(err){ console.error(err); aviso.className="aviso err"; aviso.textContent="Error: "+err.message; }
+  finally{ document.getElementById("btn-generar").disabled=false; }
+  }, 20);
 }
 
 // Menú de pestañas: siempre "Datos" primero + una por sección generada.
