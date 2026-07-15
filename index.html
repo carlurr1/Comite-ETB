@@ -51,7 +51,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   @keyframes auroraFlow{from{transform:translate3d(-2%,-1%,0) scale(1)}to{transform:translate3d(2%,2%,0) scale(1.08)}}
   @media (prefers-reduced-motion:reduce){.aurora{animation:none}}
   h1{color:var(--navy);font-size:22px;margin-bottom:4px}
-  .sub{color:var(--gris);font-size:14px;margin-bottom:18px}
+  .sub{color:var(--gris);font-size:14px}
+  .topbar{display:flex;align-items:center;gap:18px;margin-bottom:18px;padding:16px 22px;border-radius:20px;background:var(--neu);box-shadow:9px 9px 22px var(--neu-lo),-9px -9px 22px var(--neu-hi);max-width:1100px}
+  .topbar-logo{height:44px;width:auto;border-radius:10px;padding:6px 10px;background:#fff;box-shadow:inset 2px 2px 5px var(--neu-lo),inset -2px -2px 5px var(--neu-hi)}
+  .topbar-txt h1{margin-bottom:2px}
   .panel-carga{background:var(--neu);border-radius:20px;padding:22px 26px;box-shadow:9px 9px 22px var(--neu-lo),-9px -9px 22px var(--neu-hi);margin-bottom:18px;max-width:1100px}
   .grid-inputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:10px}
   .campo{border:0;border-radius:14px;padding:14px 16px;background:var(--neu);box-shadow:inset 4px 4px 9px var(--neu-lo),inset -4px -4px 9px var(--neu-hi)}
@@ -77,7 +80,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .tab:hover{color:var(--cian)}
   .tab.activa{color:var(--cian);background:linear-gradient(135deg,rgba(0,148,192,.12),rgba(0,52,109,.07));box-shadow:inset 4px 4px 9px var(--neu-lo),inset -4px -4px 9px var(--neu-hi)}
   .seccion.oculta{display:none}
-  #salida.exportando .seccion.oculta{display:block}
+  #paneles.exportando .seccion.oculta{display:block}
   .seg-tit{color:var(--navy);font-size:20px;font-weight:800;margin:8px 0 6px;padding-bottom:6px;border-bottom:2px solid rgba(0,52,109,.14)}
   .bloque-wrap{position:relative;display:inline-block;vertical-align:top;margin:10px}
   .bloque-wrap .btnpng{position:absolute;top:16px;right:16px;z-index:5;opacity:.85}
@@ -202,9 +205,17 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 </head>
 <body>
 <div class="aurora"></div>
-<h1>Tablero de comité — Soporte eTb</h1>
-<div class="sub">Sube los archivos de la semana y genera las imágenes por segmento, listas para copiar/pegar en la presentación.</div>
+<header class="topbar">
+  <img id="app-logo" class="topbar-logo" alt="eTb" />
+  <div class="topbar-txt">
+    <h1>Tablero de comité — Soporte eTb</h1>
+    <div class="sub">Sube los archivos de la semana y genera las imágenes por segmento, listas para copiar/pegar en la presentación.</div>
+  </div>
+</header>
 
+<div id="tabs" class="tabs"></div>
+<div id="paneles">
+<section class="seccion" data-seccion="datos" id="sec-datos">
 <div class="panel-carga">
   <div class="grid-inputs">
     <div class="campo">
@@ -256,9 +267,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     <span class="aviso" id="aviso"></span>
   </div>
 </div>
-
-<div id="tabs" class="tabs"></div>
+</section>
 <div id="salida"></div>
+</div>
 
 <script>
 /* ====================== helpers de lectura ====================== */
@@ -354,6 +365,14 @@ function analizarBBDD(wb){
   const falla=f=>kFalla?txt(f[kFalla]):"";
   const origen=f=>col(f,"Origen del caso","Origen");
   const cliente=f=>txt(col(f,"Nombre de la cuenta","Nombre de la Cuenta","Cliente"))||"(Sin nombre)";
+  // Nuevos bloques del semáforo:
+  const catResol=f=>txt(col(f,"Categoria de Resolucion Nivel 5")); // categoría de resolución (col AX)
+  const imputab=f=>txt(col(f,"Categoria de Resolucion Nivel 1"));  // imputabilidad ETB/CLIENTE/FUERZA MAYOR (col AT)
+  const esMasivo=f=>txt(col(f,"Incidente Masivo"))!==""; // marcado como masivo (col E)
+  const esWO=f=>String(col(f,"Id Sistema Legado")??"").trim().toUpperCase().startsWith("WO"); // WO vs INC (col AR)
+  const fechaSerial=v=>{ const n=num(v,NaN); if(!Number.isFinite(n)||n<=0)return null; const d=XLSX.SSF.parse_date_code(n); return d?new Date(d.y,d.m-1,d.d,d.H||0,d.M||0,Math.floor(d.S||0)):null; };
+  const apertura=f=>fechaSerial(col(f,"Fecha/Hora de apertura","Fecha Apertura"));
+  const cierre=f=>fechaSerial(col(f,"Fecha/Hora de cierre","Fecha Cierre"));
   // Propietario "Integraciones TIBCO": estos casos NO cuentan para el TMS (el tiempo es de un
   // tercero, se descuenta del TMS), pero SÍ siguen contando en conteos y resolutividad (SN1).
   const esPropTIBCO=f=>norm(col(f,"Propietario del caso","Propietario")).includes("tibco");
@@ -368,7 +387,7 @@ function analizarBBDD(wb){
 
   const porSeg=new Map();
   const segDe=f=>{ const s=txt(col(f,"Segmento")); return s?claveSegmento(s):""; };
-  const nodo=k=>porSeg.get(k)??porSeg.set(k,{segmento:"",cerradosSin:[],cerradosCon:[],ingLlamada:0,ingCorreo:0,origen:new Map()}).get(k);
+  const nodo=k=>porSeg.get(k)??porSeg.set(k,{segmento:"",cerradosSin:[],cerradosCon:[],ingLlamada:0,ingCorreo:0,origen:new Map(),ingresosRows:[]}).get(k);
 
   for(const f of cerrados){ const k=segDe(f); if(!k)continue; const n=nodo(k); n.segmento=n.segmento||txt(col(f,"Segmento"));
     n.cerradosCon.push(f); if(!esCOFO(f))n.cerradosSin.push(f); }
@@ -377,8 +396,21 @@ function analizarBBDD(wb){
   const cuenta=(m,key)=>m.set(key,(m.get(key)||0)+1);
   for(const f of ingresos){ const o=origen(f); const tel=esCanalTel(o),corr=esCanalCor(o); if(tel)genLl++; if(corr)genCor++;
     cuenta(genOrigen, txt(o)||"(Sin origen)");
-    const k=segDe(f); if(!k)continue; const n=nodo(k); if(tel)n.ingLlamada++; if(corr)n.ingCorreo++; cuenta(n.origen, txt(o)||"(Sin origen)"); }
+    const k=segDe(f); if(!k)continue; const n=nodo(k); if(tel)n.ingLlamada++; if(corr)n.ingCorreo++; cuenta(n.origen, txt(o)||"(Sin origen)"); n.ingresosRows.push(f); }
   const topOrigen=m=>[...m.entries()].map(([nombre,n])=>({nombre,n})).sort((a,b)=>b.n-a.n);
+
+  // Métricas por segmento sobre TODOS los cerrados: TMB, masivos, imputabilidad (solo INC), ingresos/cierres diarios.
+  const promTMB=arr=>{ let s=0,c=0; for(const f of arr){ const a=apertura(f),ci=cierre(f); if(a&&ci){ const h=(ci-a)/3.6e6; if(h>=0){s+=h;c++;} } } return c? s/c*1 : 0; }; // horas
+  const contarMasivos=arr=>arr.filter(esMasivo).length;
+  const topClientesMasivos=arr=>{ const m=new Map(); for(const f of arr){ if(!esMasivo(f))continue; cuenta(m,cliente(f)); }
+    return[...m.entries()].map(([nombre,n])=>({nombre,n})).sort((a,b)=>b.n-a.n).slice(0,TOP_CLIENTES_N); };
+  const impDist=arr=>{ const m=new Map(); let tot=0; for(const f of arr){ if(esWO(f))continue; const k=imputab(f); if(!k)continue; cuenta(m,k); tot++; }
+    return { total:tot, items:[...m.entries()].map(([nombre,n])=>({nombre,n})).sort((a,b)=>b.n-a.n) }; };
+  const diaKey=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  const serieIngCierre=(ingArr,cerrArr)=>{ const dias=new Map(); const toca=k=>dias.get(k)??dias.set(k,{ing:0,cie:0}).get(k);
+    for(const f of ingArr){ const a=apertura(f); if(a)toca(diaKey(a)).ing++; }
+    for(const f of cerrArr){ const c=cierre(f); if(c)toca(diaKey(c)).cie++; }
+    return[...dias.keys()].sort().map(k=>({dia:k,ing:dias.get(k).ing,cie:dias.get(k).cie})); };
 
   const resumen=g=>{
     const n1=g.filter(f=>esHDP(area(f)));
@@ -393,15 +425,20 @@ function analizarBBDD(wb){
       for(const f of arr){ const c=cliente(f); const o=m.get(c)??m.set(c,{n:0,suma:0,conTms:0}).get(c); o.n++; const t=tms(f); if(t>0){o.suma+=t;o.conTms++;} }
       return[...m.entries()].map(([nombre,o])=>({nombre,n:o.n,conTms:o.conTms,horas:o.conTms?o.suma/o.conTms*24:0}))
         .filter(c=>c.conTms>=TOP_CLIENTES_MIN).sort((a,b)=>b.horas-a.horas).slice(0,TOP_CLIENTES_N); };
+    // Top 5 categoría de resolución (Nivel 5) por cantidad, ignorando los sin categoría.
+    const topCatResol=arr=>{ const m=new Map(); for(const f of arr){ const k=catResol(f); if(k)cuenta(m,k); }
+      return[...m.entries()].map(([nombre,n])=>({nombre,n})).sort((a,b)=>b.n-a.n).slice(0,5); };
     return { cerrados:g.length, n1:n1.length, n2:n2.length,
       resolCalc:g.length?n1.length/g.length*100:0,
       tmsHoras:promHoras(g), tmsN1Horas:promHoras(n1), tmsN2Horas:promHoras(n2),
       areasN1:agg(n1,f=>area(f),"(En blanco)"), areasN2:agg(n2,f=>area(f),"(En blanco)"), fallas:agg(g,f=>falla(f),"(Sin tipo de falla)"),
-      clientes:topClientes(g) };
+      clientes:topClientes(g), catResol:topCatResol(g) };
   };
 
   const res=new Map();
-  for(const[k,n] of porSeg) res.set(k,{ segmento:n.segmento, sin:resumen(n.cerradosSin), con:resumen(n.cerradosCon), ingLlamada:n.ingLlamada, ingCorreo:n.ingCorreo, origen:topOrigen(n.origen) });
+  for(const[k,n] of porSeg) res.set(k,{ segmento:n.segmento, sin:resumen(n.cerradosSin), con:resumen(n.cerradosCon), ingLlamada:n.ingLlamada, ingCorreo:n.ingCorreo, origen:topOrigen(n.origen),
+    tmbHoras:promTMB(n.cerradosCon), masivos:contarMasivos(n.cerradosCon), clientesMasivos:topClientesMasivos(n.cerradosCon),
+    imput:impDist(n.cerradosCon), ingCierreSerie:serieIngCierre(n.ingresosRows,n.cerradosCon) });
   return { porSeg:res, general:{llamada:genLl, correo:genCor, origen:topOrigen(genOrigen)} };
 }
 
@@ -739,6 +776,106 @@ function bloqueTopClientes(d){ const o=d.oper; if(!o)return"";
     <div class="nota">Ranking por TMS promedio del cliente (casos cerrados con TMS; propietario Integraciones TIBCO excluido). Mínimo ${TOP_CLIENTES_MIN} casos por cliente.</div></div>`;
 }
 
+/* ---- Nuevos bloques del semáforo (por segmento) ---- */
+// Lista ranqueada compacta (nº + nombre + barra + valor + sufijo). Reutiliza el estilo tc-*.
+function listaRank(arr,valFn,sufijo){
+  const max=Math.max(1e-9,...arr.map(x=>x.n));
+  return arr.map((x,i)=>`<li class="tc-row"><span class="tc-rk">${i+1}</span><span class="tc-nom" title="${escHtml(x.nombre)}">${escHtml(x.nombre)}</span><span class="tc-bar"><i style="width:${(x.n/max*100).toFixed(1)}%"></i></span><b class="tc-tms">${valFn(x)}</b><span class="tc-cas">${sufijo}</span></li>`).join("");
+}
+// 1) Top 5 categoría de resolución (Nivel 5), Sin/Con COFO.
+function colCat(titulo,arr){
+  if(!arr||!arr.length)return `<div class="grupo op2"><div class="grupo-tit">${titulo}</div><div class="sl-vacio">Sin categoría de resolución</div></div>`;
+  return `<div class="grupo op2"><div class="grupo-tit">${titulo}</div><ol class="tc-lista">${listaRank(arr,x=>fmt(x.n),"casos")}</ol></div>`;
+}
+function bloqueCatResol(d){ const o=d.oper; if(!o)return"";
+  const sin=o.sin?.catResol||[], con=o.con?.catResol||[];
+  if(!sin.length&&!con.length)return"";
+  return `<div class="panel w980" data-capture="cat-resol"><div class="panel-head"><div><div class="panel-title">Top 5 categoría de resolución — ${d.segmento}</div></div></div>
+    <div class="op-dos">${colCat("Sin COFO",sin)}${colCat("Con COFO",con)}</div>
+    <div class="nota">Categoría de resolución (nivel de detalle) con más casos cerrados en el período.</div></div>`;
+}
+
+// 2) Ingresos vs Cierres — línea diaria con doble eje X (día + semana).
+function graficaIngCierre(serie){
+  const n=serie.length, w=940,h=320,padL=42,padR=18,padTop=18,padBottom=66;
+  const iW=w-padL-padR, iH=h-padTop-padBottom, baseY=padTop+iH;
+  const maxV=Math.max(1,...serie.map(d=>Math.max(d.ing,d.cie)));
+  const eX=i=> n===1?padL+iW/2 : padL+(i/(n-1))*iW;
+  const eY=v=> baseY-(v/maxV)*iH;
+  let grid="",yl=""; const NG=4;
+  for(let g=0;g<=NG;g++){ const v=Math.round(maxV*g/NG), y=eY(v).toFixed(1);
+    grid+=`<line x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}" stroke="${eTb.grisClaro}"/>`;
+    yl+=`<text x="${padL-8}" y="${(+y+4).toFixed(1)}" text-anchor="end" font-size="11" fill="${eTb.gris}">${v}</text>`; }
+  const trazo=(key,color)=>{ const P=serie.map((d,i)=>({x:eX(i),y:eY(d[key])}));
+    const path=P.map((p,i)=>(i?"L":"M")+p.x.toFixed(1)+","+p.y.toFixed(1)).join(" ");
+    const cir=P.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.3" fill="${color}" stroke="#fff" stroke-width="1.4"/>`).join("");
+    return `<path d="${path}" fill="none" stroke="${color}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>${cir}`; };
+  const dd=serie.map(d=>{ const p=d.dia.split("-"); return {dd:p[2], date:new Date(+p[0],+p[1]-1,+p[2])}; });
+  const min=dd.length?dd[0].date:new Date();
+  const sem=date=>Math.floor((date-min)/(7*864e5))+1;
+  const boxTop=baseY+8, boxBot=h-6, cellMid=(boxTop+boxBot)/2;
+  let ejeX=`<line x1="${padL}" y1="${boxTop.toFixed(1)}" x2="${w-padR}" y2="${boxTop.toFixed(1)}" stroke="${eTb.grisClaro}"/>`;
+  serie.forEach((d,i)=>{ ejeX+=`<text x="${eX(i).toFixed(1)}" y="${(boxTop+15).toFixed(1)}" text-anchor="middle" font-size="10.5" fill="${eTb.gris}">${dd[i].dd}</text>`; });
+  const grupos=new Map(); dd.forEach((d,i)=>{ const s=sem(d.date); (grupos.get(s)??grupos.set(s,[]).get(s)).push(i); });
+  [...grupos.keys()].sort((a,b)=>a-b).forEach((s,gi)=>{ const idxs=grupos.get(s); const cx=(eX(idxs[0])+eX(idxs[idxs.length-1]))/2;
+    if(gi>0){ const xb=((eX(idxs[0])+eX(idxs[0]-1))/2).toFixed(1); ejeX+=`<line x1="${xb}" y1="${boxTop.toFixed(1)}" x2="${xb}" y2="${boxBot}" stroke="${eTb.grisClaro}"/>`; }
+    ejeX+=`<text x="${cx.toFixed(1)}" y="${(cellMid+16).toFixed(1)}" text-anchor="middle" font-size="12.5" font-weight="800" fill="${eTb.navy}">Semana ${s}</text>`; });
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg"><rect width="${w}" height="${h}" fill="#fff"/>${grid}${yl}${trazo("ing",eTb.cian)}${trazo("cie",eTb.naranja)}${ejeX}</svg>`;
+}
+function bloqueIngCierre(d){ const o=d.oper; const s=o&&o.ingCierreSerie; if(!s||!s.length)return"";
+  const tI=s.reduce((a,x)=>a+x.ing,0), tC=s.reduce((a,x)=>a+x.cie,0);
+  return `<div class="panel w980" data-capture="ing-cierre"><div class="panel-head"><div><div class="panel-title">Ingresos vs Cierres — ${d.segmento}</div></div></div>
+    ${leyenda([{nombre:`Ingresos (${fmt(tI)})`,color:eTb.cian},{nombre:`Cierres (${fmt(tC)})`,color:eTb.naranja}])}
+    <div class="grafica" style="padding:4px 0;box-shadow:none">${graficaIngCierre(s)}</div>
+    <div class="nota">Casos creados (por fecha de apertura) vs cerrados (por fecha de cierre), por día. El eje inferior agrupa los días por semana.</div></div>`;
+}
+
+// 3) TMB (tiempo en bolsa) vs TMS (tiempo de solución).
+function bloqueTMB(d){ const o=d.oper; if(!o||!o.con)return""; const tmbH=o.tmbHoras||0, tmsH=o.con.tmsHorasFin||0;
+  if(!tmbH)return"";
+  return `<div class="panel" data-capture="tmb"><div class="panel-head"><div><div class="panel-title">Tiempo en bolsa (TMB) vs solución (TMS) — ${d.segmento}</div></div></div>
+    <div class="op-kpis" style="margin-top:6px">
+      ${kpi("TMB · tiempo medio en bolsa",`${fmt(tmbH/24,1)} días`,"Creación → cierre (tiempo abierto)")}
+      ${kpi("TMS · tiempo medio de solución",`${horasAHms(tmsH)} hr`,"Inicio → fin de afectación")}
+      ${kpi("Relación TMB / TMS",`${fmt(tmsH>0?tmbH/tmsH:0,1)}×`,"Veces que el tiempo abierto supera al de afectación")}
+    </div>
+    <div class="nota">El TMB mide cuánto estuvo el caso abierto en la bolsa; el TMS mide solo el tiempo de afectación (no implica que sea el tiempo que estuvo abierto).</div></div>`;
+}
+
+// 4) Imputabilidad (solo incidencias, sin WO) — dona por Categoría de Resolución Nivel 1.
+const COLORES_IMPUT={cliente:"#0094C0",etb:"#00346D",fuerzamayor:"#FF6523",proveedor:"#8A7D1E",cumplido:"#1f8a4c",noviable:"#7C8894"};
+const paletaImput=["#0094C0","#00346D","#FF6523","#8A7D1E","#1f8a4c","#7C8894","#2AC3F3","#c0392b"];
+const colorImput=(nombre,i)=>COLORES_IMPUT[norm(nombre)]||paletaImput[i%paletaImput.length];
+function graficaDona(items,total){
+  const cx=110,cy=110,r=88,ri=54; let a0=-Math.PI/2;
+  const segs=items.map((it,i)=>{ const frac=it.n/total, a1=a0+frac*2*Math.PI, large=frac>0.5?1:0, c=colorImput(it.nombre,i);
+    const P=(rad,a)=>`${(cx+rad*Math.cos(a)).toFixed(1)},${(cy+rad*Math.sin(a)).toFixed(1)}`;
+    const path=frac>=0.9999
+      ? `M${P(r,a0)} A${r},${r} 0 1 1 ${P(r,a0+Math.PI)} A${r},${r} 0 1 1 ${P(r,a0)} M${P(ri,a0)} A${ri},${ri} 0 1 0 ${P(ri,a0+Math.PI)} A${ri},${ri} 0 1 0 ${P(ri,a0)} Z`
+      : `M${P(r,a0)} A${r},${r} 0 ${large} 1 ${P(r,a1)} L${P(ri,a1)} A${ri},${ri} 0 ${large} 0 ${P(ri,a0)} Z`;
+    a0=a1; return `<path d="${path}" fill="${c}" fill-rule="evenodd"/>`; }).join("");
+  return `<svg width="220" height="220" viewBox="0 0 220 220" xmlns="http://www.w3.org/2000/svg">${segs}<text x="${cx}" y="${cy-2}" text-anchor="middle" font-size="30" font-weight="800" fill="${eTb.navy}">${fmt(total)}</text><text x="${cx}" y="${cy+18}" text-anchor="middle" font-size="12" fill="${eTb.gris}">incidencias</text></svg>`;
+}
+function bloqueImput(d){ const o=d.oper; const im=o&&o.imput; if(!im||!im.total)return"";
+  const ley=im.items.map((it,i)=>`<li class="tc-row"><span class="tc-rk" style="background:${colorImput(it.nombre,i)};color:#fff"></span><span class="tc-nom" title="${escHtml(it.nombre)}">${escHtml(it.nombre)}</span><b class="tc-tms">${pct(100*it.n/im.total,1)}</b><span class="tc-cas">${fmt(it.n)}</span></li>`).join("");
+  return `<div class="panel" data-capture="imput"><div class="panel-head"><div><div class="panel-title">Imputabilidad de incidencias — ${d.segmento}</div></div></div>
+    <div style="display:flex;gap:26px;align-items:center;flex-wrap:wrap;margin-top:8px">
+      <div style="flex:none">${graficaDona(im.items,im.total)}</div>
+      <ol class="tc-lista" style="flex:1;min-width:260px">${ley}</ol>
+    </div>
+    <div class="nota">Solo incidencias (se excluyen las WO). Imputabilidad = Categoría de Resolución Nivel 1.</div></div>`;
+}
+
+// 5) Casos masivos: conteo + clientes más impactados.
+function bloqueMasivos(d){ const o=d.oper; if(!o)return""; const tot=o.masivos||0; if(!tot)return"";
+  const cl=o.clientesMasivos||[];
+  const lista=cl.length?`<div class="grupo-tit" style="margin-top:14px">Clientes más impactados por casos masivos</div><ol class="tc-lista">${listaRank(cl,x=>fmt(x.n),"masivos")}</ol>`:"";
+  return `<div class="panel" data-capture="masivos"><div class="panel-head"><div><div class="panel-title">Casos masivos — ${d.segmento}</div></div></div>
+    <div style="margin-top:6px;max-width:240px">${kpi("Casos masivos",fmt(tot),"Marcados como Incidente Masivo")}</div>
+    ${lista}
+    <div class="nota">Casos con marca de Incidente Masivo entre los cerrados del período.</div></div>`;
+}
+
 const statDias=arr=>arr.length?`prom ${fmt(prom(arr),1)} · máx ${fmt(Math.max(...arr))} días abiertos`:"sin dato de días";
 function bloqueBolsaTotal(d){ const b=d.bolsaTotal; if(!b||!b.total)return"";
   const catsDe=m=>[...(m||new Map()).entries()].map(([nombre,e])=>({nombre,n:e.n,dias:e.dias})).sort((x,y)=>y.n-x.n);
@@ -770,10 +907,16 @@ function bloqueBolsa(d){ if(!d.bolsa.length)return""; const dias=diasDe(d.bolsa)
   <tr class="fila-total"><td class="izq">Total</td>${dias.map(x=>`<td>${fmt(tD(x))}</td>`).join("")}<td class="der b">${fmt(tG)}</td></tr></table></div>`;
 }
 function bloquesSegmento(d){ const b=[["tablero",bloqueSlide(d)]];
-  const f=bloqueFallas(d); if(f)b.push(["tms-falla",f]);
-  const tc=bloqueTopClientes(d); if(tc)b.push(["top-clientes",tc]);
-  const bt=bloqueBolsaTotal(d); if(bt)b.push(["bolsa-total",bt]);
-  if(d.bolsa.length)b.push(["bolsa-inc",bloqueBolsa(d)]);
+  const push=(k,html)=>{ if(html)b.push([k,html]); };
+  push("ing-cierre",bloqueIngCierre(d));
+  push("tms-falla",bloqueFallas(d));
+  push("top-clientes",bloqueTopClientes(d));
+  push("cat-resol",bloqueCatResol(d));
+  push("tmb",bloqueTMB(d));
+  push("imput",bloqueImput(d));
+  push("masivos",bloqueMasivos(d));
+  push("bolsa-total",bloqueBolsaTotal(d));
+  if(d.bolsa.length)push("bolsa-inc",bloqueBolsa(d));
   return b;
 }
 
@@ -872,9 +1015,21 @@ function generar(){
   }catch(err){ console.error(err); aviso.className="aviso err"; aviso.textContent="Error: "+err.message; }
 }
 
-function render(general,segmentos){
-  const cont=document.getElementById("salida"); cont.innerHTML=""; cont.classList.remove("exportando");
+// Menú de pestañas: siempre "Datos" primero + una por sección generada.
+function construirTabs(secciones){
   const tabs=document.getElementById("tabs"); tabs.innerHTML="";
+  const lista=[{clave:"datos",titulo:"Datos"},...secciones];
+  for(const s of lista){ const b=document.createElement("button"); b.className="tab"; b.textContent=s.titulo; b.dataset.tab=s.clave;
+    b.addEventListener("click",()=>activarTab(s.clave)); tabs.appendChild(b); }
+  tabs.style.display="flex";
+}
+function activarTab(clave){
+  document.querySelectorAll("#paneles .seccion").forEach(s=>s.classList.toggle("oculta",s.dataset.seccion!==clave));
+  document.querySelectorAll("#tabs .tab").forEach(t=>t.classList.toggle("activa",t.dataset.tab===clave));
+}
+function render(general,segmentos){
+  const cont=document.getElementById("salida"); cont.innerHTML="";
+  document.getElementById("paneles").classList.remove("exportando");
   const secciones=[];
   const agregar=(clave,titulo,bloques)=>{
     const items=bloques.filter(([,html])=>html); if(!items.length)return;
@@ -888,15 +1043,8 @@ function render(general,segmentos){
     cont.appendChild(sec); secciones.push({clave,titulo}); };
   agregar("general","General",[["tablero",bloqueGeneral(general)]]);
   for(const s of segmentos) agregar(s.clave,s.data.segmento,bloquesSegmento(s.data));
-  // menú de pestañas: una por sección con contenido
-  for(const s of secciones){ const b=document.createElement("button"); b.className="tab"; b.textContent=s.titulo; b.dataset.tab=s.clave;
-    b.addEventListener("click",()=>activarTab(s.clave)); tabs.appendChild(b); }
-  tabs.style.display=secciones.length?"flex":"none";
-  if(secciones.length)activarTab(secciones[0].clave);
-}
-function activarTab(clave){
-  document.querySelectorAll("#salida .seccion").forEach(s=>s.classList.toggle("oculta",s.dataset.seccion!==clave));
-  document.querySelectorAll("#tabs .tab").forEach(t=>t.classList.toggle("activa",t.dataset.tab===clave));
+  construirTabs(secciones);
+  activarTab(secciones.length?secciones[0].clave:"datos"); // al generar salta al General
 }
 
 /* ====================== exportar PNG ====================== */
@@ -913,12 +1061,15 @@ async function bloqueABlob(el,escala=3){
 }
 async function descargarPng(el,nombre){ const blob=await bloqueABlob(el); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=nombre; a.click(); URL.revokeObjectURL(a.href); }
 
-document.getElementById("btn-generar").addEventListener("click",generar);
-document.getElementById("btn-todo").addEventListener("click",async()=>{ const cont=document.getElementById("salida");
-  cont.classList.add("exportando"); // revela todas las secciones (incluidas las de pestañas no activas) para poder capturarlas
-  try{ const bs=cont.querySelectorAll(".bloque-wrap [data-capture]");
+document.getElementById("btn-generar").addEventListener("click",()=>{ generar(); });
+document.getElementById("btn-todo").addEventListener("click",async()=>{ const paneles=document.getElementById("paneles");
+  paneles.classList.add("exportando"); // revela todas las secciones (incluidas las de pestañas no activas) para poder capturarlas
+  try{ const bs=document.querySelectorAll("#salida .bloque-wrap [data-capture]");
     for(const b of bs){ await descargarPng(b, b.getAttribute("data-nombre")||"bloque.png"); await new Promise(r=>setTimeout(r,180)); } }
-  finally{ cont.classList.remove("exportando"); } });
+  finally{ paneles.classList.remove("exportando"); } });
+// Estado inicial: logo + pestaña "Datos" visible (carga de archivos) hasta que se genere el tablero.
+{ const lg=document.getElementById("app-logo"); if(lg)lg.src=LOGO_ETB; }
+construirTabs([]); activarTab("datos");
 </script>
 </body>
 </html>
