@@ -58,10 +58,10 @@ binario concreto, exporta `PLAYWRIGHT_CHROMIUM`.
 | **Atención** (Ofrecidas, Atendidas) — solo General | Llamadas ACD | total del período |
 | **Casos por llamada / correo** (General y por segmento) | Semáforo `BBDD`, `Origen del caso` (col V), `BASE=Ingresos` | teléfono/llamada → llamada; correo **y** correo automático → correo |
 | **Resolutividad** (`%SNU`) Sin y Con COFO | Semáforo, hoja `SN1` | leído de la tabla oficial (bloque Sin/Con COFO); respaldo: cálculo desde `BBDD` |
-| **TMS** Sin y Con COFO | Semáforo, hoja `TMS` | leído de la tabla oficial (bloque Sin/Con COFO); respaldo: cálculo desde `BBDD`. En el respaldo, `Propietario del caso` = **Integraciones TIBCO** se descuenta del TMS (no de conteos ni resolutividad) |
+| **TMS** Sin y Con COFO | Semáforo, hoja `TMS` | leído de la tabla oficial (bloque Sin/Con COFO); respaldo: cálculo desde `BBDD` con la regla COFO/masivo/propietario oficial (ver notas abajo) |
 | **TMS Nivel 2 por área** (llaves) | Semáforo `BBDD`, `BaseCerradosAreaSolucion` (col AI) | promedio TMS por área de solución, incluye "(En blanco)" |
 | **TMS por tipo de falla** | Semáforo `BBDD`, tipo de falla (col BF) | promedio TMS por falla, series Sin y Con COFO |
-| **Top 10 clientes por TMS** | Semáforo `BBDD`, `Nombre de la cuenta` | por segmento (Sin/Con COFO): ranking por TMS promedio del cliente, mín. `TOP_CLIENTES_MIN` casos, TIBCO excluido |
+| **Top 10 clientes por TMS** | Semáforo `BBDD`, `Nombre de la cuenta` | por segmento (Sin/Con COFO): ranking por TMS promedio del cliente (misma regla COFO/masivo/propietario), mín. `TOP_CLIENTES_MIN` casos |
 | **Top 5 categoría de resolución** | Semáforo `BBDD`, `Cat. Resolución Nivel 5` (col AX) | por segmento (Sin/Con COFO): categorías con más casos cerrados |
 | **Ingresos vs Cierres** | Semáforo `BBDD`, fechas apertura/cierre | línea diaria por segmento (doble eje: día + semana); ingresos por apertura, cierres por cierre |
 | **TMB (tiempo en bolsa)** | Semáforo `BBDD`, `apertura`→`cierre` | por segmento: tiempo medio abierto (creación→cierre) vs TMS (afectación) y su relación |
@@ -74,9 +74,16 @@ binario concreto, exporta `PLAYWRIGHT_CHROMIUM`.
   NS 80% / NA 95% generales.
 - **Nivel 1 (HDP)** = área de solución empieza por `HDP`; **Nivel 2** = el resto
   (incluye área en blanco).
-- **"Con COFO" desde BBDD** (cuando la hoja oficial no trae el bloque): un caso se
-  considera COFO si la columna `COFO` = 1 **o** el tipo de falla contiene
-  "COFO"/"FIBRA".
+- **COFO** (replicado del semáforo oficial, ver `detectarCofo` del GAS `semaforo-mayoristas`):
+  un caso es COFO si `Cat. Resolución Nivel 4` ∈ `N4_COFO` (excepto MALA MANIPULACION +
+  N2 MEDIO DE TRANSMISION), **o** `Nivel 2` ∈ {RETIRO, MEDIO DE TRANSMISION, DAÑO POR
+  TERCEROS, VISITA CANCELADA}, **o** `Nivel 5` en la lista (distinta para SN1 y TMS:
+  `N5_COFO_SN1` / `N5_COFO_TMS`). Comparación en MAYÚSCULAS con acentos.
+- **Exclusiones de los cálculos** (igual que el oficial):
+  - **Propietario**: se excluyen `OWNERS_EX` (Integraciones TIBCO + agentes COS).
+  - **Masivo**: en **SN1** se excluye cualquier masivo; en **TMS** solo `CORTE DE CABLE`.
+  - **Mesa**: solo Comdata / ETB Empresas Soporte (si la columna trae esos valores).
+  - El **promedio de TMS incluye los ceros** (suma/conteo de la población), como el oficial.
 - El CLI (`cli/`) conserva la versión anterior del tablero; la web es la vigente.
 
 ## Nube (Supabase) — compartir la carga entre todos

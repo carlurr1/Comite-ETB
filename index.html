@@ -355,12 +355,17 @@ const esHDP=a=>norm(a).startsWith("hdp");
 const esCanalTel=o=>/tel[eé]fono|llamada/i.test(String(o));
 const esCanalCor=o=>/correo/i.test(String(o)); // incluye "correo automático"
 
-// COFO = casos cuya CAUSA (Categoría de Resolución Nivel 2) es de infraestructura/fibra
-// (planta externa / última milla / transmisión). Reproduce el bloque "Sin COFO" del
-// semáforo (que recorta los escalados por esta causa). Editar esta lista si hace falta.
-const CAUSAS_COFO=new Set(["ultimamilla","transmision","redmetroethernet","cabletroncal",
-  "plantatelefonica","fibraaccesoplantaexterna","nodo","redconmutaciontdm","reddatacenter",
-  "redinteligente","cabletroncalprimario","primario"]);
+// COFO oficial — replicado del semáforo (Codigo.gs de semaforo-mayoristas). Un caso es COFO por:
+//  · Categoría de Resolución Nivel 4 en N4_COFO (excepto MALA MANIPULACION + N2 MEDIO DE TRANSMISION)
+//  · Categoría de Resolución Nivel 2 ∈ {RETIRO, MEDIO DE TRANSMISION, DAÑO POR TERCEROS, VISITA CANCELADA}
+//  · Categoría de Resolución Nivel 5 en la lista (distinta para SN1 y para TMS)
+// Comparación en MAYÚSCULAS con acentos (igual que el GAS). Editar estas listas si cambian.
+const N4_COFO=new Set(["FIBRA","FIBRA GPON","FIBRA OPTICA","FIBRA TRONCAL","DUPLICIDAD DE IP","FIREWALL CISCO","NAP","MALA MANIPULACION DEL CLIENTE","AIRE ACONDICIONADO","CONECTOR NAP","HUAWEI 12700","CABLE RISER","ROUTER MAIPU","DENEGACION DE SERVICIOS","MODIFICACION DE INFORMACION"]);
+const N5_COFO_SN1=new Set(["PTO CONECTOR SUCIO","DUPLICIDAD DE IP","CONECTOR NAP SUCIO","CABLE DROP DE 1 HILO DETERIORO / DESGASTE","NAP PUERTO FRACTURADO","NAP PUERTO SIN POTENCIA","MALA MANIPULACION DEL CLIENTE","CONECTOR MECANICO APC DESCONECTADO","NAP DETERIORO / DESGASTE","CONECTOR NAP MANIPULACION","SIN CABLE RJ45 ONT - ROUTER","ROBO NAP","PTO DETERIORO / DESGASTE","AIRE ACONDICIONADO","CABLE RISER","DENEGACION DE SERVICIOS","PUERTO EN DAÑO FISICO","DAÑO CONECTOR NAP","DAÑO POE","NAP COPADA","COBRE","FIBRA"]);
+const N5_COFO_TMS=new Set(["HILOS ASIGNADOS OCUPADOS","DUPLICIDAD DE IP","COBERTURA","CONECTOR MECANICO APC DESCONECTADO","CONECTOR NAP MANIPULACION","SIN CABLE RJ45 ONT - ROUTER","ROBO NAP","PTO DETERIORO / DESGASTE","AIRE ACONDICIONADO","CABLE RISER","DENEGACION DE SERVICIOS","PUERTO EN DAÑO FISICO","DAÑO CONECTOR NAP","DAÑO POE","NAP COPADA","COBRE","FIBRA"]);
+const N2_COFO=new Set(["RETIRO","MEDIO DE TRANSMISION","DAÑO POR TERCEROS","VISITA CANCELADA"]);
+// Propietarios excluidos de todos los cálculos (terceros/COS) — igual que el GAS.
+const OWNERS_EX=new Set(["integraciones tibco","yuris andrea banquez arroyo cos","jorge armando ovalle galindo cos","jose arnulfo vega galindo cos"]);
 
 // Top 10 clientes más impactados por TMS: ranking por TMS promedio del cliente. Se exige un
 // mínimo de casos (con TMS) por cliente para no rankear por un único caso atípico. Editable.
@@ -387,24 +392,33 @@ function analizarBBDD(wb){
   const fechaSerial=v=>{ const n=num(v,NaN); if(!Number.isFinite(n)||n<=0)return null; const d=XLSX.SSF.parse_date_code(n); return d?new Date(d.y,d.m-1,d.d,d.H||0,d.M||0,Math.floor(d.S||0)):null; };
   const apertura=f=>fechaSerial(col(f,"Fecha/Hora de apertura","Fecha Apertura"));
   const cierre=f=>fechaSerial(col(f,"Fecha/Hora de cierre","Fecha Cierre"));
-  // Propietario "Integraciones TIBCO": estos casos NO cuentan para el TMS (el tiempo es de un
-  // tercero, se descuenta del TMS), pero SÍ siguen contando en conteos y resolutividad (SN1).
-  const esPropTIBCO=f=>norm(col(f,"Propietario del caso","Propietario")).includes("tibco");
-  const tms=f=>esPropTIBCO(f)?0:num(col(f,"TMS")); // TMS=0 => excluido de los promedios (filtro x>0)
-  // COFO por causa (Categoría de Resolución Nivel 2) de infraestructura/fibra; respaldo columna COFO=1.
-  const causa=f=>col(f,"Categoria de Resolucion Nivel 2","Categoria de Resolucion Nivel2");
-  const esCOFO=f=>CAUSAS_COFO.has(norm(causa(f)))||String(col(f,"COFO")).trim()==="1";
+  const tmsVal=f=>num(col(f,"TMS")); // TMS en fracción de día (0 si vacío; el promedio incluye ceros, como el oficial)
+  const UP=s=>String(s??"").toUpperCase().trim();
+  // COFO oficial (N4/N5/N2), separado para SN1 (resolutividad) y TMS. Igual que detectarCofo() del GAS.
+  const n2De=f=>UP(col(f,"Categoria de Resolucion Nivel 2")), n4De=f=>UP(col(f,"Categoria de Resolucion Nivel 4")), n5De=f=>UP(col(f,"Categoria de Resolucion Nivel 5"));
+  const cofoBase=(f,n2,n4)=>{ if(N4_COFO.has(n4)){ if(!(n4==="MALA MANIPULACION DEL CLIENTE"&&n2==="MEDIO DE TRANSMISION"))return true; } return N2_COFO.has(n2); };
+  const cofoSN1=f=>{ const n2=n2De(f),n4=n4De(f); return cofoBase(f,n2,n4)||N5_COFO_SN1.has(n5De(f)); };
+  const cofoTMS=f=>{ const n2=n2De(f),n4=n4De(f); return cofoBase(f,n2,n4)||N5_COFO_TMS.has(n5De(f)); };
+  // Masivo: en SN1 excluye cualquier masivo; en TMS solo "CORTE DE CABLE". Propietario: excluye TIBCO + COS.
+  const masSN1=f=>{ const m=UP(col(f,"Incidente Masivo")); return m!=="" && m!=="SIN FALLA MASIVA" && m!=="NONE" && m!=="NULL"; };
+  const masTMS=f=>UP(col(f,"Incidente Masivo"))==="CORTE DE CABLE";
+  const ownerEx=f=>OWNERS_EX.has(String(col(f,"Propietario del caso","Propietario")).toLowerCase().trim());
+  // Mesa: solo Comdata / ETB Empresas Soporte (si la columna Mesa trae esos valores; si no, no filtra).
+  const mesaRec=m=>{ const x=norm(m); return x.includes("comdata")||x.includes("etbempresassoporte"); };
 
   const esCancelado=f=>norm(col(f,"Estado"))==="cancelado";
-  const cerrados=filas.filter(f=>norm(col(f,"BASE"))==="cerrados");
-  const ingresos=filas.filter(f=>norm(col(f,"BASE"))==="ingresos" && !esCancelado(f)); // ingresos reales (sin cancelados)
+  const cerradosAll=filas.filter(f=>norm(col(f,"BASE"))==="cerrados");
+  const hayMesa=cerradosAll.some(f=>mesaRec(col(f,"Mesa")));
+  const mesaOK=f=>!hayMesa||mesaRec(col(f,"Mesa"));
+  // Base elegible: cerrados sin propietarios excluidos y con Mesa válida (aplica a todos los bloques).
+  const cerrados=cerradosAll.filter(f=>!ownerEx(f)&&mesaOK(f));
+  const ingresos=filas.filter(f=>norm(col(f,"BASE"))==="ingresos" && !esCancelado(f) && !ownerEx(f)); // ingresos reales (sin cancelados ni excluidos)
 
   const porSeg=new Map();
   const segDe=f=>{ const s=txt(col(f,"Segmento")); return s?claveSegmento(s):""; };
-  const nodo=k=>porSeg.get(k)??porSeg.set(k,{segmento:"",cerradosSin:[],cerradosCon:[],cerradosCofo:[],ingLlamada:0,ingCorreo:0,origen:new Map(),ingresosRows:[]}).get(k);
+  const nodo=k=>porSeg.get(k)??porSeg.set(k,{segmento:"",cerrados:[],ingLlamada:0,ingCorreo:0,origen:new Map(),ingresosRows:[]}).get(k);
 
-  for(const f of cerrados){ const k=segDe(f); if(!k)continue; const n=nodo(k); n.segmento=n.segmento||txt(col(f,"Segmento"));
-    n.cerradosCon.push(f); if(esCOFO(f))n.cerradosCofo.push(f); else n.cerradosSin.push(f); }
+  for(const f of cerrados){ const k=segDe(f); if(!k)continue; const n=nodo(k); n.segmento=n.segmento||txt(col(f,"Segmento")); n.cerrados.push(f); }
 
   let genLl=0,genCor=0; const genOrigen=new Map();
   const cuenta=(m,key)=>m.set(key,(m.get(key)||0)+1);
@@ -428,33 +442,32 @@ function analizarBBDD(wb){
     for(const f of cerrArr){ const c=cierre(f); if(c)toca(diaKey(c)).cie++; }
     return[...dias.keys()].sort().map(k=>({dia:k,ing:dias.get(k).ing,cie:dias.get(k).cie})); };
 
-  const resumen=g=>{
-    const n1=g.filter(f=>esHDP(area(f)));
-    const n2=g.filter(f=>!esHDP(area(f))); // incluye área en blanco
+  // TMS promedio incluyendo ceros (igual que el oficial): suma/conteo de la población.
+  const promT=arr=>arr.length? arr.reduce((a,f)=>a+tmsVal(f),0)/arr.length*24 : 0;
+  // resumen(base, esSin): calcula resolutividad (población SN1) y TMS (población TMS) para Con/Sin COFO.
+  const resumen=(base,esSin)=>{
+    const sn1=base.filter(f=>!masSN1(f) && (!esSin||!cofoSN1(f)));       // resolutividad: excluye masivos (+cofoSN1 si Sin COFO)
+    const tp =base.filter(f=>!masTMS(f) && (!esSin||!cofoTMS(f)));       // TMS: excluye solo masivo CORTE DE CABLE (+cofoTMS si Sin COFO)
+    const n1=sn1.filter(f=>esHDP(area(f))), n2=sn1.filter(f=>!esHDP(area(f)));
+    const tN1=tp.filter(f=>esHDP(area(f))), tN2=tp.filter(f=>!esHDP(area(f)));
     const agg=(arr,keyFn,vacio)=>{ const m=new Map();
-      for(const f of arr){ const k=keyFn(f)||vacio; const o=m.get(k)??m.set(k,{n:0,suma:0,conTms:0}).get(k); o.n++; const t=tms(f); if(t>0){o.suma+=t;o.conTms++;} }
-      return[...m.entries()].map(([nombre,o])=>({nombre,n:o.n,horas:o.conTms?o.suma/o.conTms*24:0})).sort((a,b)=>b.horas-a.horas); };
-    const promHoras=arr=>{ const v=arr.map(tms).filter(x=>x>0); return v.length? v.reduce((a,b)=>a+b,0)/v.length*24 : 0; };
-    // Top clientes por TMS promedio (peor tiempo). Se cuentan solo casos con TMS>0 (TIBCO ya excluido);
-    // se exige un mínimo de casos (TOP_CLIENTES_MIN) para no rankear por un único caso atípico.
+      for(const f of arr){ const k=keyFn(f)||vacio; const o=m.get(k)??m.set(k,{n:0,suma:0}).get(k); o.n++; o.suma+=tmsVal(f); }
+      return[...m.entries()].map(([nombre,o])=>({nombre,n:o.n,horas:o.n?o.suma/o.n*24:0})).sort((a,b)=>b.horas-a.horas); };
     const topClientes=arr=>{ const m=new Map();
-      for(const f of arr){ const c=cliente(f); const o=m.get(c)??m.set(c,{n:0,suma:0,conTms:0}).get(c); o.n++; const t=tms(f); if(t>0){o.suma+=t;o.conTms++;} }
-      return[...m.entries()].map(([nombre,o])=>({nombre,n:o.n,conTms:o.conTms,horas:o.conTms?o.suma/o.conTms*24:0}))
-        .filter(c=>c.conTms>=TOP_CLIENTES_MIN).sort((a,b)=>b.horas-a.horas).slice(0,TOP_CLIENTES_N); };
-    // Top 5 categoría de resolución (Nivel 5) por cantidad, ignorando los sin categoría.
-    const topCatResol=arr=>{ const m=new Map(); for(const f of arr){ const k=catResol(f); if(k)cuenta(m,k); }
-      return[...m.entries()].map(([nombre,n])=>({nombre,n})).sort((a,b)=>b.n-a.n).slice(0,5); };
-    return { cerrados:g.length, n1:n1.length, n2:n2.length,
-      resolCalc:g.length?n1.length/g.length*100:0,
-      tmsHoras:promHoras(g), tmsN1Horas:promHoras(n1), tmsN2Horas:promHoras(n2),
-      areasN1:agg(n1,f=>area(f),"(En blanco)"), areasN2:agg(n2,f=>area(f),"(En blanco)"), fallas:agg(g,f=>falla(f),"(Sin tipo de falla)"),
-      clientes:topClientes(g), catResol:topCatResol(g) };
+      for(const f of arr){ const c=cliente(f); const o=m.get(c)??m.set(c,{n:0,suma:0}).get(c); o.n++; o.suma+=tmsVal(f); }
+      return[...m.entries()].map(([nombre,o])=>({nombre,n:o.n,horas:o.n?o.suma/o.n*24:0}))
+        .filter(c=>c.n>=TOP_CLIENTES_MIN).sort((a,b)=>b.horas-a.horas).slice(0,TOP_CLIENTES_N); };
+    return { cerrados:sn1.length, n1:n1.length, n2:n2.length,
+      resolCalc:sn1.length?n1.length/sn1.length*100:0,
+      tmsHoras:promT(tp), tmsN1Horas:promT(tN1), tmsN2Horas:promT(tN2),
+      areasN1:agg(tN1,f=>area(f),"(En blanco)"), areasN2:agg(tN2,f=>area(f),"(En blanco)"), fallas:agg(tp,f=>falla(f),"(Sin tipo de falla)"),
+      clientes:topClientes(tp), catResol:topCatResolDe(tp) };
   };
 
   const res=new Map();
-  for(const[k,n] of porSeg) res.set(k,{ segmento:n.segmento, sin:resumen(n.cerradosSin), con:resumen(n.cerradosCon), ingLlamada:n.ingLlamada, ingCorreo:n.ingCorreo, origen:topOrigen(n.origen),
-    tmbHoras:promTMB(n.cerradosCon), masivos:contarMasivos(n.cerradosCon), clientesMasivos:topClientesMasivos(n.cerradosCon),
-    imput:impDist(n.cerradosCon), ingCierreSerie:serieIngCierre(n.ingresosRows,n.cerradosCon), catResolCofo:topCatResolDe(n.cerradosCofo) });
+  for(const[k,n] of porSeg) res.set(k,{ segmento:n.segmento, sin:resumen(n.cerrados,true), con:resumen(n.cerrados,false), ingLlamada:n.ingLlamada, ingCorreo:n.ingCorreo, origen:topOrigen(n.origen),
+    tmbHoras:promTMB(n.cerrados), masivos:contarMasivos(n.cerrados), clientesMasivos:topClientesMasivos(n.cerrados),
+    imput:impDist(n.cerrados), ingCierreSerie:serieIngCierre(n.ingresosRows,n.cerrados), catResolCofo:topCatResolDe(n.cerrados.filter(f=>!masTMS(f)&&cofoTMS(f))) });
   return { porSeg:res, general:{llamada:genLl, correo:genCor, origen:topOrigen(genOrigen)} };
 }
 
