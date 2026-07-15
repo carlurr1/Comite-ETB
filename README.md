@@ -62,6 +62,11 @@ binario concreto, exporta `PLAYWRIGHT_CHROMIUM`.
 | **TMS Nivel 2 por área** (llaves) | Semáforo `BBDD`, `BaseCerradosAreaSolucion` (col AI) | promedio TMS por área de solución, incluye "(En blanco)" |
 | **TMS por tipo de falla** | Semáforo `BBDD`, tipo de falla (col BF) | promedio TMS por falla, series Sin y Con COFO |
 | **Top 10 clientes por TMS** | Semáforo `BBDD`, `Nombre de la cuenta` | por segmento (Sin/Con COFO): ranking por TMS promedio del cliente, mín. `TOP_CLIENTES_MIN` casos, TIBCO excluido |
+| **Top 5 categoría de resolución** | Semáforo `BBDD`, `Cat. Resolución Nivel 5` (col AX) | por segmento (Sin/Con COFO): categorías con más casos cerrados |
+| **Ingresos vs Cierres** | Semáforo `BBDD`, fechas apertura/cierre | línea diaria por segmento (doble eje: día + semana); ingresos por apertura, cierres por cierre |
+| **TMB (tiempo en bolsa)** | Semáforo `BBDD`, `apertura`→`cierre` | por segmento: tiempo medio abierto (creación→cierre) vs TMS (afectación) y su relación |
+| **Imputabilidad** | Semáforo `BBDD`, `Cat. Resolución Nivel 1` (col AT) | por segmento: dona ETB/CLIENTE/FUERZA MAYOR/… solo incidencias (excluye WO por prefijo `Id Sistema Legado`) |
+| **Casos masivos** | Semáforo `BBDD`, `Incidente Masivo` (col E) | por segmento: conteo de masivos + clientes más impactados |
 | **Bolsa INC total** | Bolsa completa + Base de clientes | por `RESPONSABLE` (col BM): HDP → Nivel 1; ASG_CORP → CPE, FALLA GPON → GPON, FIBRA → COFO, OTROS; días abiertos prom/máx |
 | **Bolsa OTROS** (estado × días) | Bolsa, `RESPONSABLE=OTROS` | estado × días abiertos, segmento por NIT |
 
