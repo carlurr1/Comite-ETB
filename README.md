@@ -58,9 +58,10 @@ binario concreto, exporta `PLAYWRIGHT_CHROMIUM`.
 | **Atención** (Ofrecidas, Atendidas) — solo General | Llamadas ACD | total del período |
 | **Casos por llamada / correo** (General y por segmento) | Semáforo `BBDD`, `Origen del caso` (col V), `BASE=Ingresos` | teléfono/llamada → llamada; correo **y** correo automático → correo |
 | **Resolutividad** (`%SNU`) Sin y Con COFO | Semáforo, hoja `SN1` | leído de la tabla oficial (bloque Sin/Con COFO); respaldo: cálculo desde `BBDD` |
-| **TMS** Sin y Con COFO | Semáforo, hoja `TMS` | leído de la tabla oficial (bloque Sin/Con COFO); respaldo: cálculo desde `BBDD` |
+| **TMS** Sin y Con COFO | Semáforo, hoja `TMS` | leído de la tabla oficial (bloque Sin/Con COFO); respaldo: cálculo desde `BBDD`. En el respaldo, `Propietario del caso` = **Integraciones TIBCO** se descuenta del TMS (no de conteos ni resolutividad) |
 | **TMS Nivel 2 por área** (llaves) | Semáforo `BBDD`, `BaseCerradosAreaSolucion` (col AI) | promedio TMS por área de solución, incluye "(En blanco)" |
 | **TMS por tipo de falla** | Semáforo `BBDD`, tipo de falla (col BF) | promedio TMS por falla, series Sin y Con COFO |
+| **Top 10 clientes por TMS** | Semáforo `BBDD`, `Nombre de la cuenta` | por segmento (Sin/Con COFO): ranking por TMS promedio del cliente, mín. `TOP_CLIENTES_MIN` casos, TIBCO excluido |
 | **Bolsa INC total** | Bolsa completa + Base de clientes | por `RESPONSABLE` (col BM): HDP → Nivel 1; ASG_CORP → CPE, FALLA GPON → GPON, FIBRA → COFO, OTROS; días abiertos prom/máx |
 | **Bolsa OTROS** (estado × días) | Bolsa, `RESPONSABLE=OTROS` | estado × días abiertos, segmento por NIT |
 
@@ -72,6 +73,35 @@ binario concreto, exporta `PLAYWRIGHT_CHROMIUM`.
   considera COFO si la columna `COFO` = 1 **o** el tipo de falla contiene
   "COFO"/"FIBRA".
 - El CLI (`cli/`) conserva la versión anterior del tablero; la web es la vigente.
+
+## Nube (Supabase) — compartir la carga entre todos
+
+Por defecto cada quien guarda sus archivos solo en su navegador (IndexedDB). Si configuras
+**Supabase Storage**, la carga se comparte: cuando **alguien** sube un archivo queda en la nube
+y **cualquiera** que abra la página lo carga solo, sin volver a subirlo (modelo *el último gana*).
+
+**Activarlo:**
+
+1. Crea un proyecto en [supabase.com](https://supabase.com) (plan gratis). En **Settings → API**
+   copia el **Project URL** y la **anon public key**.
+2. En **Storage** crea un bucket llamado `comite`. En **SQL Editor** corre las políticas:
+   ```sql
+   insert into storage.buckets (id, name) values ('comite','comite') on conflict do nothing;
+   create policy "comite lee"      on storage.objects for select using (bucket_id='comite');
+   create policy "comite inserta"  on storage.objects for insert with check (bucket_id='comite');
+   create policy "comite actualiza"on storage.objects for update using (bucket_id='comite');
+   ```
+3. En `index.html`, en el objeto `SUPABASE` (sección `<script>`), pon tu `url` y `anon`:
+   ```js
+   const SUPABASE={ url:"https://xxxxx.supabase.co", anon:"eyJ...", bucket:"comite" };
+   ```
+
+**Seguridad:** la `anon key` es pública (va en el cliente, es lo normal en Supabase). Con las
+políticas de arriba, cualquiera que tenga la URL de la página puede leer/reemplazar los archivos
+del bucket `comite`. Para una herramienta interna del comité suele ser aceptable; si quieres
+restringir escritura, se puede exigir login y ajustar las políticas. Los datos se guardan como
+archivos `.xlsx` (uno por tipo) más un `meta.json` con nombres y el corte. Si dejas `SUPABASE`
+vacío, la nube queda **desactivada** y todo funciona offline igual que antes.
 
 ## Estructura
 

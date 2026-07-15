@@ -35,29 +35,50 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     --navy:#00346D; --navy2:#0E3875; --cian:#0094C0; --cian2:#2AC3F3;
     --naranja:#FF6523; --linea:#2E6E8E; --dorado:#8A7D1E; --gris:#7C8894;
     --grisc:#E6ECEE; --texto:#1E2124; --ok:#1f8a4c; --mal:#c0392b;
+    /* neumorfismo (solo shell: fondo, tarjeta de carga y menú; NO toca los bloques del tablero) */
+    --neu:#e8edf3; --neu-lo:#c7d0dc; --neu-hi:#ffffff;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--texto);background:#f0f3f5;padding:20px}
+  body{font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--texto);background:var(--neu);padding:20px;position:relative}
+  /* Aurora UI: capa de fondo suave detrás del contenido (z-index:-1, no afecta las capturas PNG) */
+  .aurora{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden;filter:blur(72px);opacity:.55;
+    background:
+      radial-gradient(38% 44% at 16% 20%, rgba(0,148,192,.55), transparent 70%),
+      radial-gradient(34% 42% at 84% 14%, rgba(42,195,243,.48), transparent 70%),
+      radial-gradient(46% 46% at 78% 84%, rgba(0,52,109,.42), transparent 70%),
+      radial-gradient(42% 42% at 22% 88%, rgba(124,136,148,.28), transparent 70%);
+    animation:auroraFlow 26s ease-in-out infinite alternate}
+  @keyframes auroraFlow{from{transform:translate3d(-2%,-1%,0) scale(1)}to{transform:translate3d(2%,2%,0) scale(1.08)}}
+  @media (prefers-reduced-motion:reduce){.aurora{animation:none}}
   h1{color:var(--navy);font-size:22px;margin-bottom:4px}
   .sub{color:var(--gris);font-size:14px;margin-bottom:18px}
-  .panel-carga{background:#fff;border-radius:10px;padding:18px 22px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:18px;max-width:1100px}
+  .panel-carga{background:var(--neu);border-radius:20px;padding:22px 26px;box-shadow:9px 9px 22px var(--neu-lo),-9px -9px 22px var(--neu-hi);margin-bottom:18px;max-width:1100px}
   .grid-inputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:10px}
-  .campo{border:1px dashed #b7c4cc;border-radius:8px;padding:12px 14px;background:#f8fafb}
+  .campo{border:0;border-radius:14px;padding:14px 16px;background:var(--neu);box-shadow:inset 4px 4px 9px var(--neu-lo),inset -4px -4px 9px var(--neu-hi)}
   .campo label{display:block;font-weight:700;color:var(--navy);font-size:13.5px;margin-bottom:6px}
   .campo .hint{font-size:12px;color:var(--gris);margin-bottom:8px}
   .campo input[type=file]{font-size:12.5px;width:100%}
   .campo .ok{color:var(--ok);font-size:12px;font-weight:700;margin-top:6px}
   .manual{display:flex;flex-wrap:wrap;gap:14px;margin-top:14px}
   .manual label{font-size:12.5px;font-weight:700;color:var(--navy);display:flex;flex-direction:column;gap:4px}
-  .manual input{padding:6px 8px;border:1px solid #b7c4cc;border-radius:6px;font-size:13px;min-width:120px}
+  .manual input{padding:8px 12px;border:0;border-radius:10px;font-size:13px;min-width:120px;background:var(--neu);color:var(--texto);box-shadow:inset 3px 3px 7px var(--neu-lo),inset -3px -3px 7px var(--neu-hi)}
   .acciones{margin-top:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-  button.primario{background:var(--navy);color:#fff;border:0;border-radius:8px;padding:11px 20px;font-size:14px;font-weight:700;cursor:pointer}
-  button.primario:hover{background:var(--navy2)}
-  button.sec{background:#fff;color:var(--navy);border:1.5px solid var(--navy);border-radius:7px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer}
-  button.sec:hover{background:#eef4fa}
+  button.primario{background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;border:0;border-radius:12px;padding:11px 22px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:6px 6px 14px var(--neu-lo),-6px -6px 14px var(--neu-hi);transition:.15s}
+  button.primario:hover{filter:brightness(1.08)}
+  button.primario:active{box-shadow:inset 4px 4px 9px rgba(0,0,0,.28)}
+  button.sec{background:var(--neu);color:var(--navy);border:0;border-radius:11px;padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer;box-shadow:5px 5px 12px var(--neu-lo),-5px -5px 12px var(--neu-hi);transition:.15s}
+  button.sec:hover{color:var(--cian)}
+  button.sec:active{box-shadow:inset 4px 4px 9px var(--neu-lo),inset -4px -4px 9px var(--neu-hi)}
   .aviso{font-size:12.5px;color:var(--gris)}
   .aviso.err{color:var(--mal);font-weight:700}
-  .seg-tit{color:var(--navy);font-size:20px;font-weight:800;margin:26px 0 6px;border-bottom:2px solid var(--grisc);padding-bottom:6px}
+  /* Menú de pestañas (neumórfico): General + una por segmento */
+  .tabs{display:none;flex-wrap:wrap;gap:12px;align-items:center;margin:22px 0 10px;padding:12px;border-radius:20px;background:var(--neu);box-shadow:inset 3px 3px 8px var(--neu-lo),inset -3px -3px 8px var(--neu-hi);max-width:1100px}
+  .tab{border:0;cursor:pointer;padding:10px 20px;border-radius:13px;font-size:14px;font-weight:800;color:var(--navy);background:var(--neu);box-shadow:5px 5px 11px var(--neu-lo),-5px -5px 11px var(--neu-hi);transition:.16s}
+  .tab:hover{color:var(--cian)}
+  .tab.activa{color:var(--cian);background:linear-gradient(135deg,rgba(0,148,192,.12),rgba(0,52,109,.07));box-shadow:inset 4px 4px 9px var(--neu-lo),inset -4px -4px 9px var(--neu-hi)}
+  .seccion.oculta{display:none}
+  #salida.exportando .seccion.oculta{display:block}
+  .seg-tit{color:var(--navy);font-size:20px;font-weight:800;margin:8px 0 6px;padding-bottom:6px;border-bottom:2px solid rgba(0,52,109,.14)}
   .bloque-wrap{position:relative;display:inline-block;vertical-align:top;margin:10px}
   .bloque-wrap .btnpng{position:absolute;top:16px;right:16px;z-index:5;opacity:.85}
   /* ---- estilo del tablero (idéntico a la herramienta) ---- */
@@ -153,6 +174,14 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .n2-bar i{display:block;height:100%;background:var(--cian);border-radius:0 4px 4px 0}
   .n2-item b{font-size:12px;color:var(--navy);white-space:nowrap}
   .n2-item small{font-size:11px;color:var(--gris);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tc-lista{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
+  .tc-row{display:flex;align-items:center;gap:9px;min-width:0}
+  .tc-rk{flex:none;width:20px;height:20px;border-radius:50%;background:#EDF2F5;color:var(--navy);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .tc-nom{flex:1 1 auto;min-width:0;font-size:12.5px;font-weight:600;color:var(--texto);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tc-bar{flex:none;width:64px;height:10px;background:#EDF2F5;border-radius:4px;overflow:hidden}
+  .tc-bar i{display:block;height:100%;background:var(--cian);border-radius:4px}
+  .tc-tms{flex:none;min-width:62px;text-align:right;font-size:12.5px;color:var(--navy);white-space:nowrap}
+  .tc-cas{flex:none;min-width:54px;font-size:11px;color:var(--gris);white-space:nowrap}
   .op-dos{display:flex;gap:14px;margin-top:14px;align-items:stretch}
   .op-dos .grupo{flex:1;min-width:0}
   .grupo.canal{display:block;margin-bottom:14px}
@@ -172,6 +201,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 </style>
 </head>
 <body>
+<div class="aurora"></div>
 <h1>Tablero de comité — Soporte eTb</h1>
 <div class="sub">Sube los archivos de la semana y genera las imágenes por segmento, listas para copiar/pegar en la presentación.</div>
 
@@ -227,6 +257,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   </div>
 </div>
 
+<div id="tabs" class="tabs"></div>
 <div id="salida"></div>
 
 <script>
@@ -309,6 +340,10 @@ const CAUSAS_COFO=new Set(["ultimamilla","transmision","redmetroethernet","cable
   "plantatelefonica","fibraaccesoplantaexterna","nodo","redconmutaciontdm","reddatacenter",
   "redinteligente","cabletroncalprimario","primario"]);
 
+// Top 10 clientes más impactados por TMS: ranking por TMS promedio del cliente. Se exige un
+// mínimo de casos (con TMS) por cliente para no rankear por un único caso atípico. Editable.
+const TOP_CLIENTES_N=10, TOP_CLIENTES_MIN=2;
+
 function filasBBDD(wb){ const hoja=wb.SheetNames.find(n=>norm(n)==="bbdd")||wb.SheetNames[0]; return XLSX.utils.sheet_to_json(wb.Sheets[hoja],{defval:""}); }
 
 function analizarBBDD(wb){
@@ -318,7 +353,11 @@ function analizarBBDD(wb){
   const area=f=>txt(col(f,"BaseCerradosAreaSolucion","Area Solucion","AreaSolucion"));
   const falla=f=>kFalla?txt(f[kFalla]):"";
   const origen=f=>col(f,"Origen del caso","Origen");
-  const tms=f=>num(col(f,"TMS"));
+  const cliente=f=>txt(col(f,"Nombre de la cuenta","Nombre de la Cuenta","Cliente"))||"(Sin nombre)";
+  // Propietario "Integraciones TIBCO": estos casos NO cuentan para el TMS (el tiempo es de un
+  // tercero, se descuenta del TMS), pero SÍ siguen contando en conteos y resolutividad (SN1).
+  const esPropTIBCO=f=>norm(col(f,"Propietario del caso","Propietario")).includes("tibco");
+  const tms=f=>esPropTIBCO(f)?0:num(col(f,"TMS")); // TMS=0 => excluido de los promedios (filtro x>0)
   // COFO por causa (Categoría de Resolución Nivel 2) de infraestructura/fibra; respaldo columna COFO=1.
   const causa=f=>col(f,"Categoria de Resolucion Nivel 2","Categoria de Resolucion Nivel2");
   const esCOFO=f=>CAUSAS_COFO.has(norm(causa(f)))||String(col(f,"COFO")).trim()==="1";
@@ -348,10 +387,17 @@ function analizarBBDD(wb){
       for(const f of arr){ const k=keyFn(f)||vacio; const o=m.get(k)??m.set(k,{n:0,suma:0,conTms:0}).get(k); o.n++; const t=tms(f); if(t>0){o.suma+=t;o.conTms++;} }
       return[...m.entries()].map(([nombre,o])=>({nombre,n:o.n,horas:o.conTms?o.suma/o.conTms*24:0})).sort((a,b)=>b.horas-a.horas); };
     const promHoras=arr=>{ const v=arr.map(tms).filter(x=>x>0); return v.length? v.reduce((a,b)=>a+b,0)/v.length*24 : 0; };
+    // Top clientes por TMS promedio (peor tiempo). Se cuentan solo casos con TMS>0 (TIBCO ya excluido);
+    // se exige un mínimo de casos (TOP_CLIENTES_MIN) para no rankear por un único caso atípico.
+    const topClientes=arr=>{ const m=new Map();
+      for(const f of arr){ const c=cliente(f); const o=m.get(c)??m.set(c,{n:0,suma:0,conTms:0}).get(c); o.n++; const t=tms(f); if(t>0){o.suma+=t;o.conTms++;} }
+      return[...m.entries()].map(([nombre,o])=>({nombre,n:o.n,conTms:o.conTms,horas:o.conTms?o.suma/o.conTms*24:0}))
+        .filter(c=>c.conTms>=TOP_CLIENTES_MIN).sort((a,b)=>b.horas-a.horas).slice(0,TOP_CLIENTES_N); };
     return { cerrados:g.length, n1:n1.length, n2:n2.length,
       resolCalc:g.length?n1.length/g.length*100:0,
       tmsHoras:promHoras(g), tmsN1Horas:promHoras(n1), tmsN2Horas:promHoras(n2),
-      areasN1:agg(n1,f=>area(f),"(En blanco)"), areasN2:agg(n2,f=>area(f),"(En blanco)"), fallas:agg(g,f=>falla(f),"(Sin tipo de falla)") };
+      areasN1:agg(n1,f=>area(f),"(En blanco)"), areasN2:agg(n2,f=>area(f),"(En blanco)"), fallas:agg(g,f=>falla(f),"(Sin tipo de falla)"),
+      clientes:topClientes(g) };
   };
 
   const res=new Map();
@@ -673,6 +719,26 @@ function bloqueFallas(d){ const o=d.oper; if(!o)return"";
     ${resto>0?`<div class="nota">Se muestran los 10 tipos de falla con mayor TMS; quedan ${resto} adicionales con menor tiempo.</div>`:""}</div>`;
 }
 
+// Top 10 clientes más impactados por TMS (Sin y Con COFO, lado a lado). Ranking por TMS promedio.
+// Lista compacta y autocontenida: nº + nombre (se encoge con elipsis) + barra + TMS + casos.
+const escHtml=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function colClientes(titulo,arr){
+  if(!arr||!arr.length)return `<div class="grupo op2"><div class="grupo-tit">${titulo}</div><div class="sl-vacio">Sin clientes con ${TOP_CLIENTES_MIN}+ casos cerrados con TMS</div></div>`;
+  const top=arr.slice(0,TOP_CLIENTES_N), maxH=Math.max(1e-9,...top.map(c=>c.horas));
+  const filas=top.map((c,i)=>`<li class="tc-row"><span class="tc-rk">${i+1}</span><span class="tc-nom" title="${escHtml(c.nombre)}">${escHtml(c.nombre)}</span><span class="tc-bar"><i style="width:${(c.horas/maxH*100).toFixed(1)}%"></i></span><b class="tc-tms">${horasAHms(c.horas)}</b><span class="tc-cas">${fmt(c.n)} casos</span></li>`).join("");
+  return `<div class="grupo op2"><div class="grupo-tit">${titulo}</div><ol class="tc-lista">${filas}</ol></div>`;
+}
+function bloqueTopClientes(d){ const o=d.oper; if(!o)return"";
+  const sin=o.sin?.clientes||[], con=o.con?.clientes||[];
+  if(!sin.length && !con.length)return"";
+  return `<div class="panel w980" data-capture="top-clientes"><div class="panel-head"><div><div class="panel-title">Top 10 clientes más impactados por TMS — ${d.segmento}</div></div></div>
+    <div class="op-dos">
+      ${colClientes("Sin COFO",sin)}
+      ${colClientes("Con COFO",con)}
+    </div>
+    <div class="nota">Ranking por TMS promedio del cliente (casos cerrados con TMS; propietario Integraciones TIBCO excluido). Mínimo ${TOP_CLIENTES_MIN} casos por cliente.</div></div>`;
+}
+
 const statDias=arr=>arr.length?`prom ${fmt(prom(arr),1)} · máx ${fmt(Math.max(...arr))} días abiertos`:"sin dato de días";
 function bloqueBolsaTotal(d){ const b=d.bolsaTotal; if(!b||!b.total)return"";
   const catsDe=m=>[...(m||new Map()).entries()].map(([nombre,e])=>({nombre,n:e.n,dias:e.dias})).sort((x,y)=>y.n-x.n);
@@ -705,6 +771,7 @@ function bloqueBolsa(d){ if(!d.bolsa.length)return""; const dias=diasDe(d.bolsa)
 }
 function bloquesSegmento(d){ const b=[["tablero",bloqueSlide(d)]];
   const f=bloqueFallas(d); if(f)b.push(["tms-falla",f]);
+  const tc=bloqueTopClientes(d); if(tc)b.push(["top-clientes",tc]);
   const bt=bloqueBolsaTotal(d); if(bt)b.push(["bolsa-total",bt]);
   if(d.bolsa.length)b.push(["bolsa-inc",bloqueBolsa(d)]);
   return b;
@@ -726,14 +793,46 @@ function idbOpen(){ return new Promise((res,rej)=>{ const q=indexedDB.open(IDB_D
 async function idbPut(k,v){ try{ const db=await idbOpen(); await new Promise((res,rej)=>{ const t=db.transaction(IDB_STORE,"readwrite"); t.objectStore(IDB_STORE).put(v,k); t.oncomplete=res; t.onerror=()=>rej(t.error); }); }catch(e){ console.warn("No se pudo guardar",k,e); } }
 async function idbGet(k){ try{ const db=await idbOpen(); return await new Promise((res,rej)=>{ const t=db.transaction(IDB_STORE,"readonly"); const r=t.objectStore(IDB_STORE).get(k); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }catch(e){ return null; } }
 
+/* ---- Sincronización en la nube (Supabase Storage): COMPARTIDO, el último archivo gana ----
+   Cuando alguien sube un archivo se guarda en el bucket y cualquiera que abra la página lo
+   carga solo, sin volver a subirlo. Si SUPABASE.url/anon están vacíos, la nube se DESACTIVA y
+   todo funciona igual que antes (solo IndexedDB local, offline). Ver README para crear el
+   bucket y sus políticas. La clave anon es pública (va en el cliente); NO usar la service_role. */
+const SUPABASE={ url:"https://mdvhgfwzyslllevwptzd.supabase.co", anon:"sb_publishable_-3ETi_faELq1RouSc1oHmA__wnTvtW2", bucket:"comite" };
+const nubeOn=()=> !!(SUPABASE.url && SUPABASE.anon);
+const sbUrl=p=>`${SUPABASE.url}/storage/v1/object/${SUPABASE.bucket}/${p}`;
+const sbHead=extra=>Object.assign({apikey:SUPABASE.anon,Authorization:"Bearer "+SUPABASE.anon},extra||{});
+async function sbSubir(path,buf,tipo){ const r=await fetch(sbUrl(path),{method:"POST",headers:sbHead({"Content-Type":tipo||"application/octet-stream","x-upsert":"true"}),body:buf}); if(!r.ok)throw new Error("nube subir "+r.status); }
+async function sbBajar(path){ const r=await fetch(sbUrl(path),{headers:sbHead(),cache:"no-store"}); if(r.status===404||r.status===400)return null; if(!r.ok)throw new Error("nube bajar "+r.status); return await r.arrayBuffer(); }
+async function sbBajarJSON(path){ try{ const b=await sbBajar(path); return b?JSON.parse(new TextDecoder().decode(b)):null; }catch(e){ return null; } }
+async function sbMetaGuardar(patch){ const meta=await sbBajarJSON("meta.json")||{names:{}}; meta.names=Object.assign(meta.names||{},patch.names||{}); if("corte" in patch)meta.corte=patch.corte;
+  await sbSubir("meta.json",new TextEncoder().encode(JSON.stringify(meta)),"application/json"); return meta; }
+
+function cargarSlot(c,buf,nombre,sufijo){ try{ archivos[c]=XLSX.read(buf,{type:"array"}); const el=document.getElementById("ok-"+c); if(el)el.textContent="✓ "+(nombre||"archivo")+(sufijo?" "+sufijo:""); return true; }catch(e){ return false; } }
+
 function bindInput(id,clave){ const el=document.getElementById(id); if(!el)return;
   el.addEventListener("change",async e=>{ const f=e.target.files[0]; if(!f)return;
     const buf=await f.arrayBuffer(); archivos[clave]=XLSX.read(buf,{type:"array"});
-    document.getElementById("ok-"+clave).textContent="✓ "+f.name;
-    idbPut(clave,{name:f.name,buf}); }); }
+    const ok=document.getElementById("ok-"+clave); ok.textContent="✓ "+f.name;
+    idbPut(clave,{name:f.name,buf});
+    if(nubeOn()){ ok.textContent="✓ "+f.name+" (subiendo…)";
+      try{ await sbSubir(clave+".xlsx",buf); await sbMetaGuardar({names:{[clave]:f.name}}); ok.textContent="✓ "+f.name+" (en la nube)"; }
+      catch(err){ console.warn("nube",err); ok.textContent="✓ "+f.name+" (local; nube falló)"; } }
+  }); }
 SLOTS.forEach(c=>bindInput("f-"+c,c));
 
-(async()=>{ for(const c of SLOTS){ const rec=await idbGet(c); if(rec&&rec.buf){ try{ archivos[c]=XLSX.read(rec.buf,{type:"array"}); const el=document.getElementById("ok-"+c); if(el)el.textContent="✓ "+rec.name+" (guardado)"; }catch(e){} } } })();
+(async()=>{
+  // 1) restaurar de IndexedDB (instantáneo, offline)
+  for(const c of SLOTS){ const rec=await idbGet(c); if(rec&&rec.buf) cargarSlot(c,rec.buf,rec.name,"(guardado)"); }
+  // 2) si hay nube, traer lo compartido (lo último que subió alguien) y refrescar cache local
+  if(nubeOn()){ const meta=await sbBajarJSON("meta.json")||{names:{}};
+    const mc=document.getElementById("m-corte"); if(mc&&!mc.value.trim()&&meta.corte)mc.value=meta.corte;
+    for(const c of SLOTS){ try{ const buf=await sbBajar(c+".xlsx"); if(buf){ const nombre=(meta.names&&meta.names[c])||c; if(cargarSlot(c,buf,nombre,"(nube)"))idbPut(c,{name:nombre,buf}); } }catch(e){ console.warn("nube",c,e); } }
+  }
+})();
+
+// El corte también se comparte (se guarda en meta.json de la nube al cambiarlo).
+(()=>{ const mc=document.getElementById("m-corte"); if(mc)mc.addEventListener("change",()=>{ if(nubeOn())sbMetaGuardar({corte:mc.value.trim()}).catch(()=>{}); }); })();
 
 function segmentoBase(clave,nombre){ return { segmento:nombre, oper:null, bolsaTotal:null,
   indicadores:{ corte:document.getElementById("m-corte").value.trim(),
@@ -774,18 +873,30 @@ function generar(){
 }
 
 function render(general,segmentos){
-  const cont=document.getElementById("salida"); cont.innerHTML="";
-  const agregar=(titulo,bloques)=>{
-    const tit=document.createElement("div"); tit.className="seg-tit"; tit.textContent=titulo; cont.appendChild(tit);
-    for(const [clave,html] of bloques){ if(!html)continue;
+  const cont=document.getElementById("salida"); cont.innerHTML=""; cont.classList.remove("exportando");
+  const tabs=document.getElementById("tabs"); tabs.innerHTML="";
+  const secciones=[];
+  const agregar=(clave,titulo,bloques)=>{
+    const items=bloques.filter(([,html])=>html); if(!items.length)return;
+    const sec=document.createElement("section"); sec.className="seccion"; sec.dataset.seccion=clave;
+    const tit=document.createElement("div"); tit.className="seg-tit"; tit.textContent=titulo; sec.appendChild(tit);
+    for(const [ck,html] of items){
       const wrap=document.createElement("div"); wrap.className="bloque-wrap";
       wrap.innerHTML=html;
-      const bloque=wrap.querySelector("[data-capture]");
-      const nombre=`${claveSegmento(titulo)}_${clave}.png`;
-      bloque.setAttribute("data-nombre",nombre);
-      cont.appendChild(wrap); } };
-  agregar("General",[["tablero",bloqueGeneral(general)]]);
-  for(const s of segmentos) agregar(s.data.segmento,bloquesSegmento(s.data));
+      wrap.querySelector("[data-capture]").setAttribute("data-nombre",`${claveSegmento(titulo)}_${ck}.png`);
+      sec.appendChild(wrap); }
+    cont.appendChild(sec); secciones.push({clave,titulo}); };
+  agregar("general","General",[["tablero",bloqueGeneral(general)]]);
+  for(const s of segmentos) agregar(s.clave,s.data.segmento,bloquesSegmento(s.data));
+  // menú de pestañas: una por sección con contenido
+  for(const s of secciones){ const b=document.createElement("button"); b.className="tab"; b.textContent=s.titulo; b.dataset.tab=s.clave;
+    b.addEventListener("click",()=>activarTab(s.clave)); tabs.appendChild(b); }
+  tabs.style.display=secciones.length?"flex":"none";
+  if(secciones.length)activarTab(secciones[0].clave);
+}
+function activarTab(clave){
+  document.querySelectorAll("#salida .seccion").forEach(s=>s.classList.toggle("oculta",s.dataset.seccion!==clave));
+  document.querySelectorAll("#tabs .tab").forEach(t=>t.classList.toggle("activa",t.dataset.tab===clave));
 }
 
 /* ====================== exportar PNG ====================== */
@@ -803,8 +914,11 @@ async function bloqueABlob(el,escala=3){
 async function descargarPng(el,nombre){ const blob=await bloqueABlob(el); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=nombre; a.click(); URL.revokeObjectURL(a.href); }
 
 document.getElementById("btn-generar").addEventListener("click",generar);
-document.getElementById("btn-todo").addEventListener("click",async()=>{ const bs=document.querySelectorAll("#salida .bloque-wrap [data-capture]");
-  for(const b of bs){ await descargarPng(b, b.getAttribute("data-nombre")||"bloque.png"); await new Promise(r=>setTimeout(r,180)); } });
+document.getElementById("btn-todo").addEventListener("click",async()=>{ const cont=document.getElementById("salida");
+  cont.classList.add("exportando"); // revela todas las secciones (incluidas las de pestañas no activas) para poder capturarlas
+  try{ const bs=cont.querySelectorAll(".bloque-wrap [data-capture]");
+    for(const b of bs){ await descargarPng(b, b.getAttribute("data-nombre")||"bloque.png"); await new Promise(r=>setTimeout(r,180)); } }
+  finally{ cont.classList.remove("exportando"); } });
 </script>
 </body>
 </html>

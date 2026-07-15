@@ -18,8 +18,11 @@ funciona **offline** (no necesita internet).
      barras por segmento en el bloque General (se usa el último mes con datos).
    - **Tipificación (del mes)** → Excel con `MES` / `TIEMPO` / `EFECTIVIDAD`; tabla en el General.
 3. Completa el único campo manual: **Corte** (los casos por llamada/correo se cuentan de la BBDD).
-4. **Generar tablero** → bloque **General** + bloques por segmento.
+4. **Generar tablero** → aparece un **menú de pestañas** (General + una por segmento);
+   selecciona la pestaña para ver esa sección. La interfaz usa un estilo *neumórfico*
+   con fondo *aurora* (solo el shell: las imágenes exportadas no cambian).
 5. **Descargar todas** → imágenes listas para pegar en la presentación (sin logo ni botones).
+   Exporta todas las pestañas, no solo la visible.
 
 ## Reglas de cálculo (resumen)
 
@@ -33,6 +36,13 @@ funciona **offline** (no necesita internet).
   última milla, transmisión, red metro ethernet, cable troncal, planta…; ver `CAUSAS_COFO` en el HTML),
   no por la columna `COFO` (que casi no marca casos). TMS N1 y N2 se subdividen por
   `BaseCerradosAreaSolucion` y hay gráfica de TMS por tipo de falla.
+  En el cálculo de respaldo desde `BBDD`, los casos cuyo `Propietario del caso` es
+  **Integraciones TIBCO** se **descuentan del TMS** (su tiempo es de un tercero; ver
+  `esPropTIBCO` en el HTML), pero **siguen contando** en conteos y resolutividad (SN1).
+- **Top 10 clientes más impactados por TMS** (por segmento, Sin y Con COFO): ranking por el
+  **TMS promedio** de cada cliente (`Nombre de la cuenta`), sobre casos cerrados con TMS y
+  excluyendo Integraciones TIBCO. Se exige un mínimo de casos por cliente (`TOP_CLIENTES_MIN`
+  en el HTML) para no rankear por un único caso atípico.
 - **Metas por segmento**: Resolutividad y TMS por segmento (definidas en el objeto `METAS` del HTML,
   iguales Con y Sin COFO); NS 80% / NA 95% generales.
 - **Bolsa**: toda la bolsa. Segmento por la columna **`MESA`** (MEN + PREMIUM 1..4 → Premium,
