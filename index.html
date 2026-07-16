@@ -432,6 +432,9 @@ function analizarBBDD(wb){
   const contarMasivos=arr=>arr.filter(esMasivo).length;
   const topClientesMasivos=arr=>{ const m=new Map(); for(const f of arr){ if(!esMasivo(f))continue; cuenta(m,cliente(f)); }
     return[...m.entries()].map(([nombre,n])=>({nombre,n})).sort((a,b)=>b.n-a.n).slice(0,TOP_CLIENTES_N); };
+  // Top clientes que más reportan: por cantidad de casos creados (ingresos) del cliente.
+  const topReportan=arr=>{ const m=new Map(); for(const f of arr)cuenta(m,cliente(f));
+    return[...m.entries()].map(([nombre,n])=>({nombre,n})).sort((a,b)=>b.n-a.n).slice(0,TOP_CLIENTES_N); };
   const impDist=arr=>{ const m=new Map(); let tot=0; for(const f of arr){ if(esWO(f))continue; const k=imputab(f); if(!k)continue; cuenta(m,k); tot++; }
     return { total:tot, items:[...m.entries()].map(([nombre,n])=>({nombre,n})).sort((a,b)=>b.n-a.n) }; };
   const topCatResolDe=arr=>{ const m=new Map(); for(const f of arr){ const k=catResol(f); if(k)cuenta(m,k); }
@@ -467,7 +470,8 @@ function analizarBBDD(wb){
   const res=new Map();
   for(const[k,n] of porSeg) res.set(k,{ segmento:n.segmento, sin:resumen(n.cerrados,true), con:resumen(n.cerrados,false), ingLlamada:n.ingLlamada, ingCorreo:n.ingCorreo, origen:topOrigen(n.origen),
     tmbHoras:promTMB(n.cerrados), masivos:contarMasivos(n.cerrados), clientesMasivos:topClientesMasivos(n.cerrados),
-    imput:impDist(n.cerrados), ingCierreSerie:serieIngCierre(n.ingresosRows,n.cerrados), catResolCofo:topCatResolDe(n.cerrados.filter(f=>!masTMS(f)&&cofoTMS(f))) });
+    imput:impDist(n.cerrados), ingCierreSerie:serieIngCierre(n.ingresosRows,n.cerrados), catResolCofo:topCatResolDe(n.cerrados.filter(f=>!masTMS(f)&&cofoTMS(f))),
+    clientesReportan:topReportan(n.ingresosRows) });
   return { porSeg:res, general:{llamada:genLl, correo:genCor, origen:topOrigen(genOrigen)} };
 }
 
@@ -911,6 +915,14 @@ function bloqueMasivos(d){ const o=d.oper; if(!o)return""; const tot=o.masivos||
     <div class="nota">Casos con marca de Incidente Masivo entre los cerrados del período.</div></div>`;
 }
 
+// Top 10 clientes que más reportan (por cantidad de casos creados / ingresos en el período).
+function bloqueReportan(d){ const o=d.oper; const cl=o&&o.clientesReportan; if(!cl||!cl.length)return"";
+  const total=cl.reduce((a,x)=>a+x.n,0);
+  return `<div class="panel w980" data-capture="reportan"><div class="panel-head"><div><div class="panel-title">Top 10 clientes que más reportan — ${d.segmento}</div></div></div>
+    <ol class="tc-lista">${listaRank(cl,x=>fmt(x.n),"casos")}</ol>
+    <div class="nota">Ranking por cantidad de casos creados (ingresos) del cliente en el período.</div></div>`;
+}
+
 const statDias=arr=>arr.length?`prom ${fmt(prom(arr),1)} · máx ${fmt(Math.max(...arr))} días abiertos`:"sin dato de días";
 function bloqueBolsaTotal(d){ const b=d.bolsaTotal; if(!b||!b.total)return"";
   const catsDe=m=>[...(m||new Map()).entries()].map(([nombre,e])=>({nombre,n:e.n,dias:e.dias})).sort((x,y)=>y.n-x.n);
@@ -946,6 +958,7 @@ function bloquesSegmento(d){ const b=[["tablero",bloqueSlide(d)]];
   push("ing-cierre",bloqueIngCierre(d));
   push("tms-falla",bloqueFallas(d));
   push("top-clientes",bloqueTopClientes(d));
+  push("reportan",bloqueReportan(d));
   push("cat-resol",bloqueCatResol(d));
   push("tmb",bloqueTMB(d));
   push("imput",bloqueImput(d));
