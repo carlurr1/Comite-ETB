@@ -275,8 +275,8 @@ abr-2026, base inmediata para la tendencia y los comparativos.
 
 | Fase | Alcance | Estado |
 |---|---|---|
-| **0 · Cimientos** | Esquema, RLS, auth, roles, auditoría, dashboards base, importadores | **Este scaffold** |
-| **1 · Operación** | Bandeja del analista (marcar enviado + caso SF con validación en vivo), generar período, editor de programación | Siguiente |
+| **0 · Cimientos** | Esquema, RLS, auth, roles, auditoría, dashboards base, importadores | **Hecho** |
+| **1 · Operación** | Bandeja del analista (marcar enviado + caso SF con validación en vivo), generar período, editor de programación | **Hecho** |
 | **2 · Gestión** | Reasignación, rotación de buzones (`CALENDARIO_BUZONES`), alertas de atraso, metas por analista/segmento | — |
 | **3 · Analítica** | Más vistas Power BI (aliados, cumplimiento por semana, SLA/ANS), export | — |
 | **4 · Automatización** | Sync programado de clientes desde Salesforce (cron), notificaciones push (PWA como Pulso) | — |

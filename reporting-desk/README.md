@@ -19,6 +19,8 @@ login SOAP (usuario + contraseña + token), igual que Pulso / mayoristas-tracker
 2. **SQL Editor** → ejecuta los archivos de `supabase/` **en orden**:
    `01_schema` → `02_functions` → `03_rls` → `04_seed_catalogo` →
    `05_auditoria` → `06_vistas_kpi` → `07_rpc`.
+   *(Opcional para ver el Tablero con datos de ejemplo antes de importar:
+   ejecuta también `10_demo.sql`.)*
 3. En **Project Settings → API** copia `URL`, `anon key` y `service_role key`.
 
 ## 2. Configurar el código
@@ -83,9 +85,19 @@ Deploy. Cada push re-despliega.
 - **Service role key solo en el servidor** (Server Actions). Nunca en el cliente.
 - **Credenciales de Salesforce solo en variables de entorno** del servidor.
 
-## Estado actual (scaffold, Fase 0)
+## Estado actual (Fase 0 + Fase 1)
 
-Incluido: esquema completo, auth+roles, auditoría, vistas KPI, dashboard base
-(Recharts), Server Action de envío con validación Salesforce, e importadores de los
-dos Excel. Lo siguiente (Fase 1) es la bandeja del analista y el editor de
-programación — ver el roadmap en `ARQUITECTURA.md`.
+**Fase 0 · Cimientos:** esquema completo, auth+roles, auditoría inmutable, vistas
+KPI, integración Salesforce e importadores de los dos Excel.
+
+**Fase 1 · Operación:**
+- **Tablero** con KPIs, productividad por analista, dona de estados y cumplimiento
+  por segmento (Recharts).
+- **Mi bandeja** (analista): lista sus informes del período y registra el envío
+  con el **Caso SF**, que se **valida en vivo contra Salesforce** (trae el nombre
+  del cliente y marca el caso como válido si coincide).
+- **Programación** (coordinador/superadmin): tabla de programaciones, reasignar
+  analista, crear nuevas y **generar el período** (crea los informes del mes).
+
+Interfaz por **pestañas según el rol**. Lo siguiente (Fase 2) es rotación de
+buzones, alertas de atraso y metas — ver el roadmap en `ARQUITECTURA.md`.
