@@ -187,12 +187,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .tc-cas{flex:none;min-width:54px;font-size:11px;color:var(--gris);white-space:nowrap}
   .rep-tabla{width:100%;table-layout:fixed;border-collapse:collapse;margin-top:8px;font-size:13.5px}
   .rep-tabla th{background:#F1F5F8;color:var(--navy);font-weight:800;font-size:11.5px;text-transform:uppercase;letter-spacing:.02em;padding:9px 12px;text-align:right;white-space:nowrap;border-bottom:2px solid var(--grisc)}
-  .rep-tabla th.rk{width:38px;text-align:center} .rep-tabla th.nom{text-align:left}
-  .rep-tabla th:nth-child(3){width:78px} .rep-tabla th:nth-child(4),.rep-tabla th:nth-child(5),.rep-tabla th:nth-child(6){width:118px}
+  .rep-tabla th.rk{width:36px;text-align:center} .rep-tabla th.nom{text-align:left}
+  .rep-tabla th:nth-child(3),.rep-tabla th:nth-child(4){width:70px} .rep-tabla th:nth-child(5),.rep-tabla th:nth-child(6),.rep-tabla th:nth-child(7){width:110px}
   .rep-tabla td{padding:8px 12px;border-top:1px solid var(--grisc);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
   .rep-tabla td.rk{text-align:center;color:var(--navy);font-weight:800}
   .rep-tabla td.nom{text-align:left;font-weight:600;color:var(--texto);overflow:hidden;text-overflow:ellipsis}
-  .rep-tabla td.casos{font-weight:800;color:var(--navy)} .rep-tabla td.val{color:var(--navy);font-weight:700}
+  .rep-tabla td.casos{font-weight:800;color:var(--navy)} .rep-tabla td.pct{color:var(--dorado);font-weight:800} .rep-tabla td.val{color:var(--navy);font-weight:700}
   .op-dos{display:flex;gap:14px;margin-top:14px;align-items:stretch}
   .op-dos .grupo{flex:1;min-width:0}
   .grupo.canal{display:block;margin-bottom:14px}
@@ -444,14 +444,16 @@ function analizarBBDD(wb){
   // del cliente y su desglose N1 (HDP) / N2 (resto), calculado sobre sus cerrados (promedio incluye ceros).
   const reportanConTMS=(ingArr,cerrArr)=>{
     const cnt=new Map(); for(const f of ingArr)cuenta(cnt,cliente(f));
+    const total=ingArr.length, nClientes=cnt.size; // total de reportes y clientes distintos del segmento
     const top=[...cnt.entries()].map(([nombre,n])=>({nombre,n})).sort((a,b)=>b.n-a.n).slice(0,TOP_CLIENTES_N);
     const tms=new Map(); // cliente -> sumas TMS Sin COFO (total, N1, N2)
     for(const f of cerrArr){ if(masTMS(f)||cofoTMS(f))continue; const c=cliente(f);
       const o=tms.get(c)??tms.set(c,{s:0,n:0,s1:0,n1:0,s2:0,n2:0}).get(c);
       const t=tmsVal(f); o.s+=t; o.n++; if(esHDP(area(f))){o.s1+=t;o.n1++;}else{o.s2+=t;o.n2++;} }
     const H=(s,n)=>n?s/n*24:0;
-    return top.map(x=>{ const o=tms.get(x.nombre)||{s:0,n:0,s1:0,n1:0,s2:0,n2:0};
-      return { nombre:x.nombre, n:x.n, tmsN:o.n, tms:H(o.s,o.n), n1:o.n1, tms1:H(o.s1,o.n1), n2:o.n2, tms2:H(o.s2,o.n2) }; }); };
+    const items=top.map(x=>{ const o=tms.get(x.nombre)||{s:0,n:0,s1:0,n1:0,s2:0,n2:0};
+      return { nombre:x.nombre, n:x.n, pct:total?x.n/total*100:0, tmsN:o.n, tms:H(o.s,o.n), n1:o.n1, tms1:H(o.s1,o.n1), n2:o.n2, tms2:H(o.s2,o.n2) }; });
+    return { items, total, nClientes }; };
   const impDist=arr=>{ const m=new Map(); let tot=0; for(const f of arr){ if(esWO(f))continue; const k=imputab(f); if(!k)continue; cuenta(m,k); tot++; }
     return { total:tot, items:[...m.entries()].map(([nombre,n])=>({nombre,n})).sort((a,b)=>b.n-a.n) }; };
   const topCatResolDe=arr=>{ const m=new Map(); for(const f of arr){ const k=catResol(f); if(k)cuenta(m,k); }
@@ -932,13 +934,13 @@ function bloqueMasivos(d){ const o=d.oper; if(!o)return""; const tot=o.masivos||
     <div class="nota">Casos con marca de Incidente Masivo entre los cerrados del período.</div></div>`;
 }
 
-// Top 10 clientes que más reportan (por casos creados) + su TMS Sin COFO (total, N1 HDP, N2 resto).
-function bloqueReportan(d){ const o=d.oper; const cl=o&&o.clientesReportan; if(!cl||!cl.length)return"";
+// Top 10 clientes que más reportan (por casos creados) + % del total, y su TMS Sin COFO (total, N1 HDP, N2 resto).
+function bloqueReportan(d){ const o=d.oper; const r=o&&o.clientesReportan; if(!r||!r.items||!r.items.length)return"";
   const hv=(h,n)=>n?horasAHms(h):"—";
-  const filas=cl.map((c,i)=>`<tr><td class="rk">${i+1}</td><td class="nom" title="${escHtml(c.nombre)}">${escHtml(c.nombre)}</td><td class="casos">${fmt(c.n)}</td><td class="val">${hv(c.tms,c.tmsN)}</td><td class="val">${hv(c.tms1,c.n1)}</td><td class="val">${hv(c.tms2,c.n2)}</td></tr>`).join("");
-  return `<div class="panel w980" data-capture="reportan"><div class="panel-head"><div><div class="panel-title">Top 10 clientes que más reportan — ${d.segmento}</div></div></div>
-    <table class="rep-tabla"><thead><tr><th class="rk">#</th><th class="nom">Cliente</th><th>Casos</th><th>TMS s/COFO</th><th>TMS N1 (HDP)</th><th>TMS N2</th></tr></thead><tbody>${filas}</tbody></table>
-    <div class="nota">Ranking por casos creados (ingresos). TMS Sin COFO promedio del cliente sobre sus cerrados; N1 = HDP, N2 = escalados.</div></div>`;
+  const filas=r.items.map((c,i)=>`<tr><td class="rk">${i+1}</td><td class="nom" title="${escHtml(c.nombre)}">${escHtml(c.nombre)}</td><td class="casos">${fmt(c.n)}</td><td class="pct">${fmt(c.pct,1)}%</td><td class="val">${hv(c.tms,c.tmsN)}</td><td class="val">${hv(c.tms1,c.n1)}</td><td class="val">${hv(c.tms2,c.n2)}</td></tr>`).join("");
+  return `<div class="panel w980" data-capture="reportan"><div class="panel-head"><div><div class="panel-title">Top 10 clientes que más reportan — ${d.segmento}</div><div class="panel-sub">${fmt(r.nClientes)} clientes reportaron · ${fmt(r.total)} casos en el período</div></div></div>
+    <table class="rep-tabla"><thead><tr><th class="rk">#</th><th class="nom">Cliente</th><th>Casos</th><th>% Rep.</th><th>TMS s/COFO</th><th>TMS N1 (HDP)</th><th>TMS N2</th></tr></thead><tbody>${filas}</tbody></table>
+    <div class="nota">Ranking por casos creados (ingresos); % sobre el total de reportes del segmento. TMS Sin COFO promedio del cliente sobre sus cerrados; N1 = HDP, N2 = escalados.</div></div>`;
 }
 
 const statDias=arr=>arr.length?`prom ${fmt(prom(arr),1)} · máx ${fmt(Math.max(...arr))} días abiertos`:"sin dato de días";
