@@ -193,6 +193,13 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .rep-tabla td.rk{text-align:center;color:var(--navy);font-weight:800}
   .rep-tabla td.nom{text-align:left;font-weight:600;color:var(--texto);overflow:hidden;text-overflow:ellipsis}
   .rep-tabla td.casos{font-weight:800;color:var(--navy)} .rep-tabla td.pct{color:var(--dorado);font-weight:800} .rep-tabla td.val{color:var(--navy);font-weight:700}
+  .alt-tabla{width:100%;table-layout:fixed;border-collapse:collapse;margin-top:8px;font-size:13px}
+  .alt-tabla th{background:#F1F5F8;color:var(--navy);font-weight:800;font-size:11.5px;text-transform:uppercase;letter-spacing:.02em;padding:9px 12px;text-align:left;white-space:nowrap;border-bottom:2px solid var(--grisc)}
+  .alt-tabla th:nth-child(1){width:158px} .alt-tabla th:nth-child(3){width:130px} .alt-tabla th:nth-child(4){width:150px} .alt-tabla th:nth-child(5){width:64px;text-align:right} .alt-tabla th:nth-child(6){width:130px}
+  .alt-tabla td{padding:8px 12px;border-top:1px solid var(--grisc);text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .alt-tabla td.nom{font-weight:600;color:var(--texto)} .alt-tabla td.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:var(--navy)}
+  .alt-tabla td.falla{color:var(--gris)} .alt-tabla td.dias{text-align:right;font-weight:800;color:var(--navy);font-variant-numeric:tabular-nums}
+  .alt-tabla td.est{font-weight:700;color:var(--naranja)}
   .op-dos{display:flex;gap:14px;margin-top:14px;align-items:stretch}
   .op-dos .grupo{flex:1;min-width:0}
   .grupo.canal{display:block;margin-bottom:14px}
@@ -486,11 +493,20 @@ function analizarBBDD(wb){
       clientes:topClientes(tp), catResol:topCatResolDe(tp) };
   };
 
+  // Casos altos (backlog): pendientes con más días abiertos por segmento.
+  const diasPend=f=>num(col(f,"Dias Pendientes"));
+  const incidente=f=>txt(col(f,"Id Sistema Legado"))||txt(col(f,"Número del caso","Numero del caso"));
+  const idServicio=f=>txt(col(f,"ID Servicio","IDServicio","Id Servicio"));
+  const pendPorSeg=new Map();
+  for(const f of filas){ if(norm(col(f,"BASE"))!=="pendientes")continue; const k=segDe(f); if(!k)continue; (pendPorSeg.get(k)??pendPorSeg.set(k,[]).get(k)).push(f); }
+  const casosAltosDe=arr=>(arr||[]).slice().sort((a,b)=>diasPend(b)-diasPend(a)).slice(0,TOP_CLIENTES_N)
+    .map(f=>({ inc:incidente(f), cliente:cliente(f), idServ:idServicio(f), falla:falla(f), dias:diasPend(f), cofo:cofoTMS(f), estado:"" }));
+
   const res=new Map();
   for(const[k,n] of porSeg) res.set(k,{ segmento:n.segmento, sin:resumen(n.cerrados,true), con:resumen(n.cerrados,false), ingLlamada:n.ingLlamada, ingCorreo:n.ingCorreo, origen:topOrigen(n.origen),
     tmbHoras:promTMB(n.cerrados), masivos:contarMasivos(n.cerrados), clientesMasivos:topClientesMasivos(n.cerrados),
     imput:impDist(n.cerrados), ingCierreSerie:serieIngCierre(n.ingresosRows,n.cerrados), catResolCofo:topCatResolDe(n.cerrados.filter(f=>!masTMS(f)&&cofoTMS(f))),
-    clientesReportan:reportanConTMS(n.ingresosRows,n.cerrados) });
+    clientesReportan:reportanConTMS(n.ingresosRows,n.cerrados), casosAltos:casosAltosDe(pendPorSeg.get(k)) });
   return { porSeg:res, general:{llamada:genLl, correo:genCor, origen:topOrigen(genOrigen)} };
 }
 
@@ -943,6 +959,15 @@ function bloqueReportan(d){ const o=d.oper; const r=o&&o.clientesReportan; if(!r
     <div class="nota">Ranking por casos creados (ingresos); % sobre el total de reportes del segmento. TMS Sin COFO promedio del cliente sobre sus cerrados; N1 = HDP, N2 = escalados.</div></div>`;
 }
 
+// Casos altos (backlog): pendientes con más días abiertos. Estado bolsa (COFO/CPE) se llena con el cruce a la Bolsa.
+function bloqueCasosAltos(d){ const o=d.oper; const cl=o&&o.casosAltos; if(!cl||!cl.length)return"";
+  const conBolsa=cl.some(c=>c.estado);
+  const filas=cl.map(c=>`<tr><td class="mono" title="${escHtml(c.inc)}">${escHtml(c.inc||"—")}</td><td class="nom" title="${escHtml(c.cliente)}">${escHtml(c.cliente)}</td><td class="mono">${escHtml(c.idServ||"—")}</td><td class="falla" title="${escHtml(c.falla)}">${escHtml(c.falla||"—")}</td><td class="dias">${fmt(c.dias)}</td>${conBolsa?`<td class="est">${escHtml(c.estado||"—")}</td>`:""}</tr>`).join("");
+  return `<div class="panel w980" data-capture="casos-altos"><div class="panel-head"><div><div class="panel-title">Casos altos (backlog) — ${d.segmento}</div><div class="panel-sub">Pendientes con más días abiertos</div></div></div>
+    <table class="alt-tabla"><thead><tr><th>Incidente</th><th class="nom">Cliente</th><th>ID Servicio</th><th>Tipo de falla</th><th>Días</th>${conBolsa?"<th>Estado bolsa</th>":""}</tr></thead><tbody>${filas}</tbody></table>
+    <div class="nota">Casos abiertos (pendientes) ordenados por días abiertos.${conBolsa?' "Estado bolsa" = a espera de COFO (fibra) / CPE, del cruce con la Bolsa de INC por incidente.':" (Sube la Bolsa de INC para cruzar y marcar los que están a espera de COFO/CPE.)"}</div></div>`;
+}
+
 const statDias=arr=>arr.length?`prom ${fmt(prom(arr),1)} · máx ${fmt(Math.max(...arr))} días abiertos`:"sin dato de días";
 function bloqueBolsaTotal(d){ const b=d.bolsaTotal; if(!b||!b.total)return"";
   const catsDe=m=>[...(m||new Map()).entries()].map(([nombre,e])=>({nombre,n:e.n,dias:e.dias})).sort((x,y)=>y.n-x.n);
@@ -979,6 +1004,7 @@ function bloquesSegmento(d){ const b=[["tablero",bloqueSlide(d)]];
   push("tms-falla",bloqueFallas(d));
   push("top-clientes",bloqueTopClientes(d));
   push("reportan",bloqueReportan(d));
+  push("casos-altos",bloqueCasosAltos(d));
   push("cat-resol",bloqueCatResol(d));
   push("tmb",bloqueTMB(d));
   push("imput",bloqueImput(d));
