@@ -740,8 +740,10 @@ function bloqueICP(icp){ if(!icp||!icp.meses||!icp.meses.length)return"";
 // Tipificación: línea de EFECTIVIDAD por mes con el acabado del tablero (relleno + puntos),
 // eje Y ampliado, etiquetas de valor y eje X en dos filas (tiempo + mes).
 function graficaTipif(tipif){
-  const w=760,h=400,padL=66,padR=34,padTop=64,padBottom=92;
-  const iW=w-padL-padR, iH=h-padTop-padBottom, baseY=padTop+iH;
+  const hayRango=tipif.some(t=>t.tMin>0||t.tMax>0);
+  const w=760,padL=66,padR=34,padTop=64,padBottom=hayRango?150:92;
+  const iH=244, h=padTop+iH+padBottom;           // área de la línea idéntica; solo crece el eje X
+  const iW=w-padL-padR, baseY=padTop+iH;
   const vals=tipif.map(t=>+Number(t.efectividad).toFixed(1));
   let min=Math.min(...vals),max=Math.max(...vals);
   if(max-min<0.05){ min-=0.15; max+=0.15; } else { const p=(max-min)*0.6; min-=p; max+=p; }
@@ -759,13 +761,17 @@ function graficaTipif(tipif){
   const relleno=`${linea} L${P[P.length-1].x.toFixed(1)},${baseY} L${P[0].x.toFixed(1)},${baseY} Z`;
   const cir=P.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4.5" fill="${eTb.linea}" stroke="#fff" stroke-width="2"/>`).join("");
   const labs=vals.map((v,i)=>`<text x="${eX(i).toFixed(1)}" y="${(eY(v)-15).toFixed(1)}" text-anchor="middle" font-size="15" font-weight="700" fill="${eTb.navy}">${fmt(v,1)}%</text>`).join("");
-  // eje X en dos filas (tiempo arriba, mes abajo) con separadores sutiles
-  const boxTop=baseY+14, boxBot=h-10, cellMid=(boxTop+boxBot)/2;
+  // eje X apilado: tiempo(prom) [+ MÁX / MIN si hay rango] + mes, con separadores sutiles
+  const boxTop=baseY+14, boxBot=h-10;
+  const nRows=hayRango?4:2, rowH=(boxBot-boxTop)/nRows, yRow=k=>boxTop+rowH*(k+0.5)+5;
   let ejeX=`<line x1="${padL}" y1="${boxTop.toFixed(1)}" x2="${w-padR}" y2="${boxTop.toFixed(1)}" stroke="${eTb.grisClaro}"/>`;
-  for(let i=1;i<n;i++){ const x=((eX(i-1)+eX(i))/2).toFixed(1); ejeX+=`<line x1="${x}" y1="${boxTop.toFixed(1)}" x2="${x}" y2="${boxBot}" stroke="${eTb.grisClaro}"/>`; }
-  for(let i=0;i<n;i++){ const cx=eX(i).toFixed(1);
-    ejeX+=`<text x="${cx}" y="${(boxTop+(cellMid-boxTop)/2+5).toFixed(1)}" text-anchor="middle" font-size="13" fill="${eTb.gris}">${tipif[i].tiempo||"—"}</text>`;
-    ejeX+=`<text x="${cx}" y="${(cellMid+(boxBot-cellMid)/2+5).toFixed(1)}" text-anchor="middle" font-size="14" font-weight="800" fill="${eTb.navy}">${tipif[i].mes}</text>`; }
+  for(let i=1;i<n;i++){ const x=((eX(i-1)+eX(i))/2).toFixed(1); ejeX+=`<line x1="${x}" y1="${boxTop.toFixed(1)}" x2="${x}" y2="${boxBot.toFixed(1)}" stroke="${eTb.grisClaro}"/>`; }
+  for(let i=0;i<n;i++){ const cx=eX(i).toFixed(1), t=tipif[i]; let k=0;
+    ejeX+=`<text x="${cx}" y="${yRow(k++).toFixed(1)}" text-anchor="middle" font-size="13" fill="${eTb.gris}">${t.tiempo||"—"}</text>`;
+    if(hayRango){
+      ejeX+=`<text x="${cx}" y="${yRow(k++).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="${eTb.cian}">${t.tiempoMax?"MÁX: "+t.tiempoMax:""}</text>`;
+      ejeX+=`<text x="${cx}" y="${yRow(k++).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="${eTb.gris}">${t.tiempoMin?"MIN: "+t.tiempoMin:""}</text>`; }
+    ejeX+=`<text x="${cx}" y="${yRow(k++).toFixed(1)}" text-anchor="middle" font-size="14" font-weight="800" fill="${eTb.navy}">${t.mes}</text>`; }
   return `<div class="grafica"><svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
     <rect x="0" y="0" width="${w}" height="${h}" fill="#fff"/>
     <text x="${padL}" y="34" font-size="24" font-weight="800" fill="${eTb.navy}">Efectividad de tipificación</text>
