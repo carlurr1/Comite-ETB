@@ -536,15 +536,28 @@ function categoriaResp(r){ if(!r)return"(SIN RESPONSABLE)"; if(r.startsWith("HDP
   if(/ASG/.test(r))return"CPE"; if(/GPON/.test(r))return"GPON"; if(/FIBRA/.test(r))return"COFO"; return r; }
 
 // Segmento directo desde la columna MESA (col L) del archivo de bolsa nuevo:
-//   MEN + PREMIUM 1..4 → premium · GOLD 1 → gold · DISTRITO/ELITE/MAYORISTAS directos.
-//   SILVER y SIN MESA → "" (no son del comité; se ignoran).
+//   MEN + PREMIUM 1..4 → premium · GOLD 1 → gold · DISTRITO/ELITE/MAYORISTAS/SILVER directos.
+//   SIN MESA → "" (se ignora).
 function clasificarMesa(m){ const t=norm(m); if(!t)return"";
   if(t.startsWith("distrito"))return"distrito";
   if(t.startsWith("elite"))return"elite";
   if(t.startsWith("gold"))return"gold";
+  if(t.startsWith("silver"))return"silver";
   if(t.startsWith("mayoristas"))return"mayoristas";
   if(t==="men"||t.startsWith("premium"))return"premium";
   return""; }
+
+// Mapa incidente (INC) → RESPONSABLE de la bolsa, para cruzar con los "casos altos" del semáforo.
+function mapaBolsaResp(wb){ const m=new Map();
+  const hoja=wb.Sheets[wb.SheetNames.find(n=>norm(n)==="bolsa")||wb.SheetNames[0]];
+  const grid=XLSX.utils.sheet_to_json(hoja,{header:1,defval:""});
+  let hr=grid.findIndex(f=>(f||[]).some(c=>norm(c)==="iddelaincidencia")); if(hr<0)hr=0;
+  const header=(grid[hr]||[]).map(h=>norm(h));
+  const iId=header.indexOf("iddelaincidencia"), iResp=header.indexOf("responsable"); if(iId<0)return m;
+  for(let r=hr+1;r<grid.length;r++){ const f=grid[r]||[]; const id=norm(f[iId]); if(!id)continue; m.set(id, String(f[iResp]??"").trim().toUpperCase()); }
+  return m; }
+// Etiqueta corta del responsable de la bolsa (a espera de COFO/CPE).
+function etiquetaBolsa(resp){ const x=norm(resp); if(x==="fibra")return"COFO"; if(x==="asgcorp")return"CPE"; if(x==="fallagpon")return"GPON"; if(x==="otros")return"OTROS"; return resp||""; }
 
 function leerBolsa(wb,segmentoDeNit){
   const hoja=wb.Sheets[wb.SheetNames.find(n=>norm(n)==="bolsa")||wb.SheetNames[0]];
@@ -711,7 +724,7 @@ function composicionTop(items){
 }
 // Ingresos/Cierres/Pendientes: por segmento (último mes, a la izquierda) + totales por mes (a la derecha).
 function bloqueICP(icp){ if(!icp||!icp.meses||!icp.meses.length)return"";
-  const ordenSeg=[["mayoristas","Mayoristas"],["distrito","Distrito"],["elite","Élite"],["gold","Gold"],["premium","Premium"]];
+  const ordenSeg=[["mayoristas","Mayoristas"],["distrito","Distrito"],["elite","Élite"],["gold","Gold"],["silver","Silver"],["premium","Premium"]];
   const series=[{nombre:"Ingresos",color:eTb.cian},{nombre:"Cierres",color:"#1f8a4c"},{nombre:"Pendientes",color:eTb.naranja}];
   const u=icp.ultimo;
   const filasSeg=ordenSeg.filter(([k])=>u.porSeg.has(k)).map(([k,n])=>{ const o=u.porSeg.get(k); return {etiqueta:n,vals:[o.ingresos,o.cerrados,o.pendientes]}; });
@@ -1015,8 +1028,8 @@ function bloquesSegmento(d){ const b=[["tablero",bloqueSlide(d)]];
 }
 
 /* ====================== metas por segmento ====================== */
-const METAS={ elite:{resol:87,tms:"10:30:00"}, distrito:{resol:87,tms:"12:00:00"}, premium:{resol:87,tms:"12:00:00"}, gold:{resol:81,tms:"12:30:00"}, mayoristas:{resol:70,tms:"11:30:00"} };
-const SEGMENTOS=[["mayoristas","Mayoristas"],["distrito","Distrito"],["elite","Élite"],["gold","Gold"],["premium","Premium"]];
+const METAS={ elite:{resol:87,tms:"10:30:00"}, distrito:{resol:87,tms:"12:00:00"}, premium:{resol:87,tms:"12:00:00"}, gold:{resol:81,tms:"12:30:00"}, silver:{resol:80,tms:"12:30:00"}, mayoristas:{resol:70,tms:"11:30:00"} };
+const SEGMENTOS=[["mayoristas","Mayoristas"],["distrito","Distrito"],["elite","Élite"],["gold","Gold"],["silver","Silver"],["premium","Premium"]];
 
 /* ====================== orquestación ====================== */
 const archivos={};
@@ -1110,6 +1123,10 @@ function generar(){
     if(tiene("bolsa")){ const clientes=tiene("clientes")?leerClientes(wb("clientes")):new Map(); const resp=tiene("semaforo")?mapaNitSegmento(wb("semaforo")):new Map();
       const resolver=nit=>clientes.get(nit)||resp.get(nit); const {porSeg,total,clas,sin}=leerBolsa(wb("bolsa"),resolver);
       for(const s of segmentos){ const x=porSeg.get(s.clave); if(x){ s.data.bolsaTotal=x; s.data.bolsa=x.otros; } }
+      // Cruce Casos altos ↔ bolsa por incidente: marca a espera de COFO/CPE/GPON/OTROS.
+      const mBolsa=mapaBolsaResp(wb("bolsa"));
+      for(const s of segmentos){ const ca=s.data.oper&&s.data.oper.casosAltos; if(!ca)continue;
+        for(const c of ca){ const resp=mBolsa.get(norm(c.inc)); c.estado=resp!==undefined?(etiquetaBolsa(resp)||"OTROS"):"—"; } }
       notaBolsa=` · Bolsa: ${clas}/${total} clasificados (${sin} sin segmento)`; }
 
     render(general,segmentos);

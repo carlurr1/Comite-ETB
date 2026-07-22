@@ -1,7 +1,7 @@
 # Comité ETB — Tablero de soporte por segmento
 
 Genera el tablero del **comité de soporte** por segmento (Mayoristas, Distrito,
-Élite, Gold, Premium) con el estilo visual eTb, a partir de los archivos de la
+Élite, Gold, Silver, Premium) con el estilo visual eTb, a partir de los archivos de la
 semana. Produce imágenes **PNG** listas para copiar/pegar en la presentación.
 
 Hay dos formas de usarlo:
