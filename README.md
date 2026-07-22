@@ -28,6 +28,11 @@ Página autónoma (un solo archivo, SheetJS y logo eTb incrustados; funciona
 3. Completa **Corte** (los casos por llamada/correo ya no se digitan: se cuentan de la BBDD).
 4. **Generar tablero** → primero el bloque **General** (atención + ratio) y luego los
    bloques por segmento; botón **PNG** en cada bloque (o **Descargar todas**).
+5. **Descargar PPT** (en la pestaña *Datos*, tras generar) → arma la presentación del
+   comité con un clic: portada, un bloque **Resultados Generales**, y por segmento las
+   láminas "Análisis {Segmento} — Corte — Clientes N" con los bloques **ajustados solos**
+   al recuadro (1 grande o 2 apiladas según el tamaño, sin recortar), pie *"Serás lo que
+   creas"* y cierre *"Gracias"*. Se genera 100% en el navegador (PptxGenJS incrustado).
 
 ---
 
