@@ -618,13 +618,17 @@ function leerTipif(wb){
     const grid=XLSX.utils.sheet_to_json(wb.Sheets[nombre],{header:1,defval:""});
     const hr=grid.findIndex(f=>(f||[]).some(c=>norm(c)==="mes")); if(hr<0)continue;
     const head=grid[hr]||[]; const iM=head.findIndex(c=>norm(c)==="mes"),
-      iT=head.findIndex(c=>norm(c).startsWith("tiempo")), iE=head.findIndex(c=>norm(c).startsWith("efectividad"));
+      iT=head.findIndex(c=>norm(c)==="tiempo"), iE=head.findIndex(c=>norm(c).startsWith("efectividad")),
+      iMin=head.findIndex(c=>norm(c)==="tiempomin"), iMax=head.findIndex(c=>norm(c)==="tiempomax");
     if(iM<0||iT<0||iE<0)continue;
     let filas=[];
     for(let r=hr+1;r<grid.length;r++){ const f=grid[r]||[]; const m=txt(f[iM]); if(!m)continue;
       const tr=f[iT], tiempo=typeof tr==="number"?diasAHms(tr):txt(tr);
       let ef=num(f[iE]); if(ef<=1.5)ef*=100;
-      filas.push({mes:m,tiempo,efectividad:ef}); }
+      // Tiempos mín/máx (fracción de día): opcionales; 0 = sin dato.
+      const tProm=typeof tr==="number"?tr:0, tMin=iMin>=0?num(f[iMin]):0, tMax=iMax>=0?num(f[iMax]):0;
+      filas.push({mes:m,tiempo,efectividad:ef,tProm,tMin,tMax,
+        tiempoMin:tMin>0?diasAHms(tMin):"",tiempoMax:tMax>0?diasAHms(tMax):""}); }
     // Quedarse con el último bloque anual: desde la última aparición de "enero".
     const ultEnero=filas.map(x=>norm(x.mes)).lastIndexOf("enero");
     if(ultEnero>0) filas=filas.slice(ultEnero);
@@ -771,8 +775,52 @@ function graficaTipif(tipif){
     <path d="${linea}" fill="none" stroke="${eTb.linea}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
     ${cir}${labs}${ejeX}</svg></div>`;
 }
+// Tiempo de tipificación por mes: rango mín–máx (barra flotante) + promedio (marca),
+// con el mismo acabado del tablero. Solo se dibuja si hay datos de mín/máx.
+function graficaRangoTipif(tipif){
+  const con=tipif.filter(t=>t.tMin>0&&t.tMax>0); if(!con.length)return"";
+  const w=760,h=360,padL=72,padR=34,padTop=64,padBottom=64;
+  const iW=w-padL-padR, iH=h-padTop-padBottom;
+  const n=tipif.length;
+  const proms=tipif.map(t=>t.tProm||0).filter(v=>v>0);
+  let lo=Math.min(...tipif.map(t=>t.tMin>0?t.tMin:Infinity));
+  let hi=Math.max(...tipif.map(t=>t.tMax>0?t.tMax:0));
+  if(!Number.isFinite(lo))lo=0;
+  const span=(hi-lo)||hi||1; lo=Math.max(0,lo-span*0.12); hi=hi+span*0.12;
+  const rango=(hi-lo)||1;
+  const eY=v=>padTop+iH-(v-lo)/rango*iH;
+  const eX=i=> n===1?padL+iW/2 : padL+(i/(n-1))*iW;
+  // gridlines + eje Y (tiempo)
+  let grid="",yl=""; const NG=4;
+  for(let gi=0;gi<=NG;gi++){ const v=lo+rango*gi/NG, y=eY(v).toFixed(1);
+    grid+=`<line x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}" stroke="${eTb.grisClaro}" stroke-width="1"/>`;
+    yl+=`<text x="${padL-10}" y="${(+y+4).toFixed(1)}" text-anchor="end" font-size="12" fill="${eTb.gris}">${diasAHms(v)}</text>`; }
+  const bw=Math.min(26,iW/n*0.5);
+  let barras="";
+  for(let i=0;i<n;i++){ const t=tipif[i], cx=eX(i);
+    if(t.tMin>0&&t.tMax>0){ const yMax=eY(t.tMax), yMin=eY(t.tMin), bh=Math.max(2,yMin-yMax);
+      barras+=`<rect x="${(cx-bw/2).toFixed(1)}" y="${yMax.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="${(bw/2).toFixed(1)}" fill="${eTb.cian}" fill-opacity="0.22" stroke="${eTb.cian}" stroke-width="1.5"/>`;
+      barras+=`<text x="${cx.toFixed(1)}" y="${(yMax-8).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="700" fill="${eTb.cian}">${t.tiempoMax}</text>`;
+      barras+=`<text x="${cx.toFixed(1)}" y="${(yMin+16).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="700" fill="${eTb.gris}">${t.tiempoMin}</text>`; }
+    if(t.tProm>0){ const yP=eY(t.tProm);
+      barras+=`<line x1="${(cx-bw/2-3).toFixed(1)}" y1="${yP.toFixed(1)}" x2="${(cx+bw/2+3).toFixed(1)}" y2="${yP.toFixed(1)}" stroke="${eTb.navy}" stroke-width="3" stroke-linecap="round"/>`;
+      barras+=`<circle cx="${cx.toFixed(1)}" cy="${yP.toFixed(1)}" r="3.5" fill="${eTb.navy}"/>`; }
+    barras+=`<text x="${cx.toFixed(1)}" y="${(h-24).toFixed(1)}" text-anchor="middle" font-size="14" font-weight="800" fill="${eTb.navy}">${t.mes}</text>`;
+  }
+  return `<div class="grafica" style="margin-top:14px"><svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+    <rect x="0" y="0" width="${w}" height="${h}" fill="#fff"/>
+    <text x="${padL}" y="34" font-size="24" font-weight="800" fill="${eTb.navy}">Tiempo de tipificación</text>
+    <text x="${padL}" y="56" font-size="15" font-weight="700" fill="${eTb.gris}">Rango por mes — mín · promedio · máx</text>
+    ${grid}${yl}${barras}
+    <g transform="translate(${w-padR-232},70)">
+      <rect x="0" y="-9" width="14" height="10" rx="5" fill="${eTb.cian}" fill-opacity="0.22" stroke="${eTb.cian}" stroke-width="1.5"/>
+      <text x="20" y="0" font-size="12" fill="${eTb.gris}">Rango mín–máx</text>
+      <line x1="120" y1="-4" x2="140" y2="-4" stroke="${eTb.navy}" stroke-width="3" stroke-linecap="round"/>
+      <text x="146" y="0" font-size="12" fill="${eTb.gris}">Promedio</text>
+    </g></svg></div>`;
+}
 function bloqueTipif(tipif){ if(!tipif||!tipif.length)return"";
-  return `<div class="grupo" style="margin-top:16px">${graficaTipif(tipif)}</div>`;
+  return `<div class="grupo" style="margin-top:16px">${graficaTipif(tipif)}${graficaRangoTipif(tipif)}</div>`;
 }
 function bloqueGeneral(g){
   const a=g.llamadas, ing=g.ingresos, icp=g.icp, tipif=g.tipif;
