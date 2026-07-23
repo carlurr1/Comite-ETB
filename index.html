@@ -254,6 +254,18 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .n2-bar i{display:block;height:100%;background:var(--cian);border-radius:0 4px 4px 0}
   .n2-item b{font-size:12px;color:var(--navy);white-space:nowrap}
   .n2-item small{font-size:11px;color:var(--gris);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* Top 4 origen: lista ranqueada (sin corchete) */
+  .top4{display:flex;flex-direction:column;gap:9px;margin-top:12px}
+  .top4-sub{font-size:12px;color:var(--gris);margin-bottom:2px}
+  .top4-sub b{color:var(--navy);font-weight:800}
+  .top4-row{display:flex;align-items:center;gap:9px}
+  .top4-rk{width:22px;height:22px;flex:none;border-radius:7px;background:var(--navy);color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .top4-1 .top4-rk{background:var(--cian)}
+  .top4-nom{flex:none;width:150px;font-size:13px;font-weight:700;color:var(--texto);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .top4-bar{position:relative;flex:1;max-width:150px;height:12px;background:#EDF2F5;border-radius:4px;overflow:hidden}
+  .top4-bar i{display:block;height:100%;background:var(--cian);border-radius:0 4px 4px 0}
+  .top4-n{font-size:13px;font-weight:800;color:var(--navy);white-space:nowrap;min-width:44px;text-align:right}
+  .top4-pct{font-size:11.5px;color:var(--gris);white-space:nowrap;min-width:30px;text-align:right}
   .tc-lista{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
   .tc-row{display:flex;align-items:center;gap:9px;min-width:0}
   .tc-rk{flex:none;width:20px;height:20px;border-radius:50%;background:#EDF2F5;color:var(--navy);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
@@ -825,7 +837,7 @@ function grupoOperativos(titulo,m,metaResol,metaTmsHms){
   const metaTmsH=hmsAHoras(metaTmsHms);
   return `<div class="grupo op2"><div class="grupo-tit">${titulo}</div>
     <div class="op-kpis">
-      ${kpi("Resolutividad",pct(m.resolutividad,1),`Meta: ${fmt(metaResol)}%`,medidor(m.resolutividad,metaResol))}
+      ${kpi("Resolutividad (SN1)",pct(m.resolutividad,1),`Meta: ${fmt(metaResol)}%`,medidor(m.resolutividad,metaResol))}
       ${kpi("TMS",`${horasAHms(m.tmsHorasFin)} hr`,`Meta: ${metaTmsHms} hr`,medidor(m.tmsHorasFin,metaTmsH,true))}
       ${kpi("Casos cerrados",fmt(m.cerrados),`Nivel 1: ${fmt(m.n1)} · Nivel 2: ${fmt(m.n2)}`)}
     </div>${composicionN2(m)}</div>`;
@@ -835,12 +847,12 @@ function grupoOperativos(titulo,m,metaResol,metaTmsHms){
 // Top de "Origen del caso": el #1 arriba y una llave con el top 4 en orden (barras horizontales).
 function composicionTop(items){
   if(!items||!items.length)return`<div class="sl-vacio">Sube el Semáforo (hoja BBDD)</div>`;
-  const top=items.slice(0,4); const alto=Math.max(46,top.length*30); const maxN=Math.max(1,...top.map(o=>o.n));
+  const top=items.slice(0,4); const maxN=Math.max(1,...top.map(o=>o.n));
   const total=items.reduce((a,o)=>a+(o.n||0),0);
-  return `<div class="n2-comp">
-    <div class="n2-head"><div class="s-lbl">Total de casos</div><div class="s-val">${fmt(total)}</div><div class="s-meta">creados · sin cancelados</div><div class="s-meta" style="margin-top:7px">se reparte en los<br>principales canales →</div></div>
-    ${llave(alto)}
-    <div class="n2-items">${top.map((o,i)=>`<div class="n2-item"><span class="n2-nom" title="${o.nombre}">${i===0?"◆ ":""}${o.nombre}</span><span class="n2-bar"><i style="width:${(o.n/maxN*100).toFixed(1)}%"></i></span><b>${fmt(o.n)}</b><small>${total?Math.round(o.n/total*100):0}%</small></div>`).join("")}</div></div>`;
+  // Lista ranqueada (1..4), sin corchete: cada canal es una fila con su conteo y % del total.
+  return `<div class="top4">
+    <div class="top4-sub">Total <b>${fmt(total)}</b> casos creados · sin cancelados</div>
+    ${top.map((o,i)=>`<div class="top4-row${i===0?" top4-1":""}"><span class="top4-rk">${i+1}</span><span class="top4-nom" title="${o.nombre}">${o.nombre}</span><span class="top4-bar"><i style="width:${(o.n/maxN*100).toFixed(1)}%"></i></span><b class="top4-n">${fmt(o.n)}</b><span class="top4-pct">${total?Math.round(o.n/total*100):0}%</span></div>`).join("")}</div>`;
 }
 // Ingresos/Cierres/Pendientes: por segmento (último mes, a la izquierda) + totales por mes (a la derecha).
 function bloqueICP(icp){ if(!icp||!icp.meses||!icp.meses.length)return"";
