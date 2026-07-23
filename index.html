@@ -1127,6 +1127,7 @@ async function sbMetaGuardar(patch){ const meta=await sbBajarJSON("meta.json")||
 // Carga perezosa: al abrir/cargar solo se GUARDA el buffer (sin parsear); el XLSX.read pesado
 // ocurre recién al Generar. Así abrir la página nunca se congela por re-parsear lo guardado.
 const bufs={}; // slot -> {buf,name}
+const verSlot={}; // slot -> versión del archivo cargado (para saber si el tablero guardado quedó viejo)
 function registrarSlot(c,buf,nombre,sufijo){ bufs[c]={buf,name:nombre||"archivo"}; delete archivos[c];
   const el=document.getElementById("ok-"+c); if(el)el.textContent="✓ "+(nombre||"archivo")+(sufijo?" "+sufijo:""); }
 function tiene(c){ return !!bufs[c]; }
@@ -1148,7 +1149,7 @@ function bindInput(id,clave){ const el=document.getElementById(id); if(!el)retur
   el.addEventListener("change",async e=>{ const f=e.target.files[0]; if(!f)return;
     const buf=await f.arrayBuffer();
     const ver=Date.now().toString(36)+Math.random().toString(36).slice(2,8);
-    registrarSlot(clave,buf,f.name);        // usable YA (Generar no espera a la nube)
+    registrarSlot(clave,buf,f.name); verSlot[clave]=ver;   // usable YA (Generar no espera a la nube)
     idbPut(clave,{name:f.name,buf,ver});
     if(nubeOn()){ const ok=document.getElementById("ok-"+clave); const base="✓ "+f.name;
       ok.textContent=base+" (local · subiendo a la nube…)";
@@ -1162,7 +1163,10 @@ SLOTS.forEach(c=>bindInput("f-"+c,c));
 (async()=>{
   // 1) restaurar de IndexedDB → uso INMEDIATO (solo el buffer, sin parsear). La app queda lista aquí.
   const verLocal={};
-  for(const c of SLOTS){ const rec=await idbGet(c); if(rec&&rec.buf){ registrarSlot(c,rec.buf,rec.name,"(guardado)"); verLocal[c]=rec.ver||""; } }
+  for(const c of SLOTS){ const rec=await idbGet(c); if(rec&&rec.buf){ registrarSlot(c,rec.buf,rec.name,"(guardado)"); verLocal[c]=rec.ver||""; verSlot[c]=rec.ver||""; } }
+  // Tablero persistente: si ya se generó antes, se pinta al instante (sin parsear ni pulsar Generar).
+  let dashLocalVer=null;
+  { const dash=await idbGet("__dash"); if(dash&&dash.html){ pintarDashboard(dash); dashLocalVer=dash.ver||null; } }
   // 2) la nube corre en SEGUNDO PLANO (no bloquea la apertura) y SOLO descarga lo que cambió:
   //    si ya tienes la última versión de un archivo, no se re-descargan sus MB. Todo con timeout.
   if(!nubeOn())return;
@@ -1176,10 +1180,13 @@ SLOTS.forEach(c=>bindInput("f-"+c,c));
       if(verLocal[c] && remoto!==undefined && remoto===verLocal[c])return; // ya tienes la última
       if(verLocal[c] && remoto===undefined)return;             // meta antiguo sin versión y ya tienes algo local
       try{ const ok=document.getElementById("ok-"+c); if(ok)ok.textContent="↓ actualizando desde la nube…";
-        const buf=await sbBajar(c+".xlsx"); if(buf){ const nombre=names[c]||c; registrarSlot(c,buf,nombre,"(nube)"); idbPut(c,{name:nombre,buf,ver:remoto||""}); } }
+        const buf=await sbBajar(c+".xlsx"); if(buf){ const nombre=names[c]||c; registrarSlot(c,buf,nombre,"(nube)"); verSlot[c]=remoto||""; idbPut(c,{name:nombre,buf,ver:remoto||""}); } }
       catch(e){ console.warn("nube",c,e); const rec=await idbGet(c); const ok=document.getElementById("ok-"+c); if(ok&&rec)ok.textContent="✓ "+(rec.name||c)+" (guardado)"; }
     }));
   })();
+  // Tablero compartido: baja el último tablero generado por cualquiera y lo pinta si es más nuevo.
+  (async()=>{ try{ const b=await sbBajar("dashboard.json",60000); const snap=b?JSON.parse(new TextDecoder().decode(b)):null;
+    if(snap&&snap.html&&snap.ver!==dashLocalVer){ pintarDashboard(snap); idbPut("__dash",snap); } }catch(e){ console.warn("nube dash",e); } })();
 })();
 
 // El corte también se comparte (se guarda en meta.json de la nube al cambiarlo).
@@ -1225,6 +1232,7 @@ function generar(){
       notaBolsa=` · Bolsa: ${clas}/${total} clasificados (${sin} sin segmento)`; }
 
     render(general,segmentos);
+    guardarDashboard(); // persiste el tablero (local + nube) para que aparezca solo al abrir
     aviso.className="aviso"; aviso.textContent="Listo."+notaBolsa;
     document.getElementById("btn-todo").style.display="inline-block";
     document.getElementById("btn-ppt").style.display="inline-block";
@@ -1263,6 +1271,34 @@ function render(general,segmentos){
   for(const s of segmentos) agregar(s.clave,s.data.segmento,bloquesSegmento(s.data));
   construirTabs(secciones);
   activarTab(secciones.length?secciones[0].clave:"datos"); // al generar salta al General
+}
+
+/* ============ Tablero persistente: el resultado ya generado queda guardado ============
+   Así el dashboard aparece SOLO al abrir (en cualquier PC, desde la nube) sin volver a
+   parsear ni pulsar Generar. Solo se recalcula cuando alguien sube archivos nuevos y
+   vuelve a Generar (ese uno paga el parseo; el resto ve el resultado al instante). */
+function guardarDashboard(){
+  const salida=document.getElementById("salida");
+  const secs=[...salida.querySelectorAll(".seccion")].map(s=>({clave:s.dataset.seccion,titulo:s.querySelector(".seg-tit")?.textContent||s.dataset.seccion}));
+  const snap={ html:salida.innerHTML, secs, corte:document.getElementById("m-corte").value.trim(),
+    fileVers:Object.assign({},verSlot), ver:Date.now().toString(36)+Math.random().toString(36).slice(2,6), ts:Date.now() };
+  idbPut("__dash",snap);
+  if(nubeOn()){ (async()=>{ try{ await sbSubir("dashboard.json",new TextEncoder().encode(JSON.stringify(snap)),"application/json",120000); }catch(e){ console.warn("nube dash",e); } })(); }
+  return snap;
+}
+function pintarDashboard(snap){ if(!snap||!snap.html)return false;
+  const salida=document.getElementById("salida"); salida.innerHTML=snap.html;
+  document.getElementById("paneles").classList.remove("exportando");
+  construirTabs(snap.secs&&snap.secs.length?snap.secs:[{clave:"general",titulo:"General"}]);
+  activarTab((snap.secs&&snap.secs[0]&&snap.secs[0].clave)||"general");
+  document.getElementById("btn-todo").style.display="inline-block";
+  document.getElementById("btn-ppt").style.display="inline-block";
+  const mc=document.getElementById("m-corte"); if(mc&&!mc.value.trim()&&snap.corte)mc.value=snap.corte;
+  // aviso si hay archivos más nuevos que el tablero guardado (alguien subió pero no regeneró)
+  const nuevos=SLOTS.some(c=>verSlot[c]&&snap.fileVers&&snap.fileVers[c]!==undefined&&verSlot[c]!==snap.fileVers[c]);
+  const av=document.getElementById("aviso");
+  if(av)av.textContent = nuevos ? "Tablero guardado — hay archivos nuevos: pulsa Generar para actualizarlo." : "Tablero cargado (guardado).";
+  return true;
 }
 
 /* ====================== exportar PNG ====================== */

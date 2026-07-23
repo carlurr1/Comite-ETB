@@ -115,6 +115,13 @@ y **cualquiera** que abra la página lo carga solo, sin volver a subirlo (modelo
    const SUPABASE={ url:"https://xxxxx.supabase.co", anon:"eyJ...", bucket:"comite" };
    ```
 
+**Tablero persistente (aparece solo):** al **Generar**, el tablero ya armado se guarda
+(local + nube, ~250 KB) y **aparece solo al abrir** en cualquier PC, sin volver a parsear el
+semáforo ni pulsar Generar. Solo se recalcula cuando alguien **sube archivos nuevos y vuelve a
+Generar** (ese paga el parseo de una vez; el resto ve el resultado al instante). Si alguien
+subió archivos nuevos pero no ha regenerado, se avisa "hay archivos nuevos: pulsa Generar".
+La exportación **PNG/PPT sigue funcionando** sobre el tablero guardado (no re-parsea).
+
 **Rendimiento / resiliencia:** la nube nunca bloquea la app. Al abrir, todo se restaura al
 instante desde el navegador (IndexedDB) y la sincronización con la nube corre **en segundo
 plano, con timeout**: si la red está lenta o caída, la herramienta sigue funcionando con lo
