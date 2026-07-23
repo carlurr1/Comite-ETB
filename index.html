@@ -575,6 +575,14 @@ function analizarBBDD(wb){
     for(const f of ingArr){ const a=apertura(f); if(a)toca(diaKey(a)).ing++; }
     for(const f of cerrArr){ const c=cierre(f); if(c)toca(diaKey(c)).cie++; }
     return[...dias.keys()].sort().map(k=>({dia:k,ing:dias.get(k).ing,cie:dias.get(k).cie})); };
+  // Serie diaria General (todos los segmentos): Ingresos (por apertura), Cierres (por cierre), Pendientes (por apertura).
+  const serieICPGeneral=()=>{ const dias=new Map(); const toca=k=>dias.get(k)??dias.set(k,{ing:0,cie:0,pen:0}).get(k);
+    const activos=new Set(); // solo días con movimiento de ingresos/cierres (los pendientes-backlog traen fechas viejas)
+    for(const f of filas){ const base=norm(col(f,"BASE"));
+      if(base==="ingresos"){ const a=apertura(f); if(a){const k=diaKey(a); toca(k).ing++; activos.add(k);} }
+      else if(base==="cerrados"){ const c=cierre(f); if(c){const k=diaKey(c); toca(k).cie++; activos.add(k);} }
+      else if(base==="pendientes"){ const a=apertura(f); if(a)toca(diaKey(a)).pen++; } }
+    return[...dias.keys()].filter(k=>activos.has(k)).sort().slice(-31).map(k=>({dia:k,...dias.get(k)})); };
 
   // TMS promedio incluyendo ceros (igual que el oficial): suma/conteo de la población.
   const promT=arr=>arr.length? arr.reduce((a,f)=>a+tmsVal(f),0)/arr.length*24 : 0;
@@ -612,7 +620,7 @@ function analizarBBDD(wb){
     tmbHoras:promTMB(n.cerrados), masivos:contarMasivos(n.cerrados), clientesMasivos:topClientesMasivos(n.cerrados),
     imput:impDist(n.cerrados), ingCierreSerie:serieIngCierre(n.ingresosRows,n.cerrados), catResolCofo:topCatResolDe(n.cerrados.filter(f=>!masTMS(f)&&cofoTMS(f))),
     clientesReportan:reportanConTMS(n.ingresosRows,n.cerrados), casosAltos:casosAltosDe(pendPorSeg.get(k)) });
-  return { porSeg:res, general:{llamada:genLl, correo:genCor, origen:topOrigen(genOrigen)} };
+  return { porSeg:res, general:{llamada:genLl, correo:genCor, origen:topOrigen(genOrigen), icpDiario:serieICPGeneral()} };
 }
 
 function leerSemaforo(wb){
@@ -826,10 +834,11 @@ function grupoOperativos(titulo,m,metaResol,metaTmsHms){
 function composicionTop(items){
   if(!items||!items.length)return`<div class="sl-vacio">Sube el Semáforo (hoja BBDD)</div>`;
   const top=items.slice(0,4); const alto=Math.max(46,top.length*30); const maxN=Math.max(1,...top.map(o=>o.n));
+  const total=items.reduce((a,o)=>a+(o.n||0),0);
   return `<div class="n2-comp">
-    <div class="n2-head"><div class="s-lbl">${top[0].nombre}</div><div class="s-val">${fmt(top[0].n)}</div><div class="s-meta">origen principal (sin cancelados)</div></div>
+    <div class="n2-head"><div class="s-lbl">Total de casos</div><div class="s-val">${fmt(total)}</div><div class="s-meta">creados · sin cancelados</div><div class="s-meta" style="margin-top:7px">se reparte en los<br>principales canales →</div></div>
     ${llave(alto)}
-    <div class="n2-items">${top.map(o=>`<div class="n2-item"><span class="n2-nom" title="${o.nombre}">${o.nombre}</span><span class="n2-bar"><i style="width:${(o.n/maxN*100).toFixed(1)}%"></i></span><b>${fmt(o.n)}</b></div>`).join("")}</div></div>`;
+    <div class="n2-items">${top.map((o,i)=>`<div class="n2-item"><span class="n2-nom" title="${o.nombre}">${i===0?"◆ ":""}${o.nombre}</span><span class="n2-bar"><i style="width:${(o.n/maxN*100).toFixed(1)}%"></i></span><b>${fmt(o.n)}</b><small>${total?Math.round(o.n/total*100):0}%</small></div>`).join("")}</div></div>`;
 }
 // Ingresos/Cierres/Pendientes: por segmento (último mes, a la izquierda) + totales por mes (a la derecha).
 function bloqueICP(icp){ if(!icp||!icp.meses||!icp.meses.length)return"";
@@ -1170,6 +1179,23 @@ function bloqueBolsa(d){ if(!d.bolsa.length)return""; const dias=diasDe(d.bolsa)
   ${estados.map(e=>`<tr><td class="izq">${e}</td>${dias.map(x=>`<td>${celda(e,x)||""}</td>`).join("")}<td class="der b">${fmt(tE(e))}</td></tr>`).join("")}
   <tr class="fila-total"><td class="izq">Total</td>${dias.map(x=>`<td>${fmt(tD(x))}</td>`).join("")}<td class="der b">${fmt(tG)}</td></tr></table></div>`;
 }
+// Tabla diaria (General): Ingresos / Cierres / Pendientes por día, sumando todos los segmentos.
+function bloqueICPDiario(g){ const s=g&&g.ingresos&&g.ingresos.icpDiario; if(!s||!s.length)return"";
+  const dn=k=>{ const p=String(k).split("-"); return p[2]?String(+p[2]):k; };
+  const filasT=[["Ingresos","ing"],["Cierres","cie"],["Pendientes","pen"]];
+  const tot=key=>s.reduce((a,d)=>a+(d[key]||0),0);
+  return `<div class="panel tabla" data-capture="icp-diario"><div class="panel-title">Ingresos · Cierres · Pendientes por día — General</div>
+  <table class="tabla-dias grande"><tr class="th"><td>Movimiento</td>${s.map(d=>`<th>${dn(d.dia)}</th>`).join("")}<th>Total</th></tr>
+  ${filasT.map(([lbl,key])=>`<tr><td class="izq">${lbl}</td>${s.map(d=>`<td>${d[key]||""}</td>`).join("")}<td class="der b">${fmt(tot(key))}</td></tr>`).join("")}</table></div>`;
+}
+// Bolsa INC en gestión (OTROS) — General: la misma tabla pero sumando todos los segmentos.
+function bloqueBolsaGeneral(bolsa){ if(!bolsa||!bolsa.length)return""; const dias=diasDe(bolsa), estados=Array.from(new Set(bolsa.map(f=>f.estado).filter(Boolean)));
+  const celda=(e,x)=>bolsa.filter(f=>f.estado===e&&f.dia===x).reduce((s,f)=>s+f.cantidad,0), tE=e=>bolsa.filter(f=>f.estado===e).reduce((s,f)=>s+f.cantidad,0), tD=x=>bolsa.filter(f=>f.dia===x).reduce((s,f)=>s+f.cantidad,0), tG=bolsa.reduce((s,f)=>s+f.cantidad,0);
+  return `<div class="panel tabla" data-capture="bolsa-gen"><div class="panel-title">Bolsa INC en gestión (OTROS) — General (todos los segmentos)</div>
+  <table class="tabla-dias grande"><tr class="th"><td>Estado INC</td>${dias.map(x=>`<th>${x}</th>`).join("")}<th>Total</th></tr>
+  ${estados.map(e=>`<tr><td class="izq">${e}</td>${dias.map(x=>`<td>${celda(e,x)||""}</td>`).join("")}<td class="der b">${fmt(tE(e))}</td></tr>`).join("")}
+  <tr class="fila-total"><td class="izq">Total</td>${dias.map(x=>`<td>${fmt(tD(x))}</td>`).join("")}<td class="der b">${fmt(tG)}</td></tr></table></div>`;
+}
 function bloquesSegmento(d){ const b=[["tablero",bloqueSlide(d)]];
   const push=(k,html)=>{ if(html)b.push([k,html]); };
   push("ing-cierre",bloqueIngCierre(d));
@@ -1331,6 +1357,8 @@ function generar(){
     if(tiene("bolsa")){ const clientes=tiene("clientes")?leerClientes(wb("clientes")):new Map(); const resp=tiene("semaforo")?mapaNitSegmento(wb("semaforo")):new Map();
       const resolver=nit=>clientes.get(nit)||resp.get(nit); const {porSeg,total,clas,sin}=leerBolsa(wb("bolsa"),resolver);
       for(const s of segmentos){ const x=porSeg.get(s.clave); if(x){ s.data.bolsaTotal=x; s.data.bolsa=x.otros; } }
+      // Bolsa OTROS General = suma de todos los segmentos (para la tabla del bloque General).
+      general.bolsaOtros=[].concat(...segmentos.map(s=>s.data.bolsa||[]));
       // Cruce Casos altos ↔ bolsa por incidente: marca a espera de COFO/CPE/GPON/OTROS.
       const mBolsa=mapaBolsaResp(wb("bolsa"));
       for(const s of segmentos){ const ca=s.data.oper&&s.data.oper.casosAltos; if(!ca)continue;
@@ -1377,7 +1405,7 @@ function render(general,segmentos){
       wrap.querySelector("[data-capture]").setAttribute("data-nombre",`${claveSegmento(titulo)}_${ck}.png`);
       sec.appendChild(wrap); }
     cont.appendChild(sec); secciones.push({clave,titulo}); };
-  agregar("general","General",[["tablero",bloqueGeneral(general)]]);
+  agregar("general","General",[["tablero",bloqueGeneral(general)],["icp-diario",bloqueICPDiario(general)],["bolsa-gen",bloqueBolsaGeneral(general.bolsaOtros)]]);
   for(const s of segmentos) agregar(s.clave,s.data.segmento,bloquesSegmento(s.data));
   construirTabs(secciones);
   activarTab(secciones.length?secciones[0].clave:"datos"); // al generar salta al General
@@ -1487,6 +1515,7 @@ async function generarPPT(){
       if(clave==="general"){
         const flujo=sec.querySelector(".flujo"); if(flujo)imgs.push(await _capturar(flujo,"resumen"));
         for(const g of sec.querySelectorAll(".grafica")) imgs.push(await _capturar(g,"grafica"));
+        for(const p of sec.querySelectorAll(".bloque-wrap [data-capture].panel")) imgs.push(await _capturar(p,p.getAttribute("data-capture")));
       } else {
         for(const b of sec.querySelectorAll(".bloque-wrap [data-capture]")) imgs.push(await _capturar(b,b.getAttribute("data-capture")));
       }

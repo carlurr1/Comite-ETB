@@ -79,6 +79,8 @@ binario concreto, exporta `PLAYWRIGHT_CHROMIUM`.
 | **Casos masivos** | Semáforo `BBDD`, `Incidente Masivo` (col E) | por segmento: conteo de masivos + clientes más impactados |
 | **Top 10 clientes que más reportan** | Semáforo `BBDD`, `BASE=Ingresos` + cerrados | por segmento: ranking por casos creados + % del total + TMS Sin COFO del cliente y su desglose N1 (HDP) / N2 (escalados) |
 | **Casos altos (backlog)** | Semáforo `BBDD`, `BASE=Pendientes` | por segmento: pendientes con más días abiertos (incidente, cliente, ID servicio, tipo de falla, días); columna "Estado bolsa" (COFO/CPE) al cruzar con la Bolsa de INC |
+| **Ingresos · Cierres · Pendientes por día** (solo General) | Semáforo `BBDD` | tabla diaria (todos los segmentos): Ingresos por apertura, Cierres por cierre, Pendientes por apertura, en la ventana de días con movimiento |
+| **Bolsa INC OTROS — General** (solo General) | Bolsa, `RESPONSABLE=OTROS` | misma matriz estado × días, sumando todos los segmentos |
 | **Bolsa INC total** | Bolsa completa + Base de clientes | por `RESPONSABLE` (col BM): HDP → Nivel 1; ASG_CORP → CPE, FALLA GPON → GPON, FIBRA → COFO, OTROS; días abiertos prom/máx |
 | **Bolsa OTROS** (estado × días) | Bolsa, `RESPONSABLE=OTROS` | estado × días abiertos, segmento por NIT |
 
