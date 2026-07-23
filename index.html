@@ -71,6 +71,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .sub{color:var(--ink-soft);font-size:14px}
 
   /* ============ NUEVO SHELL (estilo Pulso): intro + sidebar + main ============ */
+  /* Barra de progreso (arriba, visible desde cualquier pestaña) */
+  .progreso{position:fixed;top:0;left:0;right:0;z-index:300;opacity:0;visibility:hidden;transition:opacity .25s,visibility .25s}
+  .progreso.on{opacity:1;visibility:visible}
+  .progreso-fill{height:5px;width:0;background:linear-gradient(90deg,var(--cian),var(--cian2));box-shadow:0 0 12px var(--cian2)}
+  .progreso-txt{position:absolute;top:11px;right:16px;font-size:12px;font-weight:800;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:5px 11px;box-shadow:0 6px 16px rgba(0,0,0,.14)}
   /* Intro: entrada a los tableros con luz giratoria */
   .intro{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:24px;
     background:radial-gradient(1100px 640px at 74% -12%,rgba(42,195,243,.30),transparent 60%),linear-gradient(155deg,#04223f,#06305F 45%,#0B7FB0);
@@ -309,6 +314,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 </head>
 <body>
 <div class="aurora"></div>
+<div id="progreso" class="progreso"><div class="progreso-fill"></div><div class="progreso-txt"></div></div>
 
 <div id="intro" class="intro">
   <div class="intro-card">
@@ -1268,6 +1274,10 @@ async function sbMetaGuardar(patch){ const meta=await sbBajarJSON("meta.json")||
 // ocurre recién al Generar. Así abrir la página nunca se congela por re-parsear lo guardado.
 const bufs={}; // slot -> {buf,name}
 const verSlot={}; // slot -> versión del archivo cargado (para saber si el tablero guardado quedó viejo)
+// Versión de RENDER del código: si el tablero guardado se armó con una versión anterior, se
+// regenera solo al abrir (para que los cambios de diseño aparezcan sin pulsar Actualizar).
+const APP_VERSION="v3-tablas-top4-sn1";
+let dashAppVerActual=null;
 function registrarSlot(c,buf,nombre,sufijo){ bufs[c]={buf,name:nombre||"archivo"}; delete archivos[c];
   const el=document.getElementById("ok-"+c); if(el)el.textContent="✓ "+(nombre||"archivo")+(sufijo?" "+sufijo:""); }
 function tiene(c){ return !!bufs[c]; }
@@ -1311,8 +1321,9 @@ SLOTS.forEach(c=>bindInput("f-"+c,c));
   // NO hay tablero mostrado, se arma solo. Solo aplica a archivos ya guardados al abrir, no a los que
   // subes en el momento (para esos usas Actualizar). Con nube espera por si llega el tablero compartido.
   const autoGen=()=>{ const haySalida=document.querySelector("#salida .seccion [data-capture]");
+    const viejo = haySalida && dashAppVerActual!==APP_VERSION; // tablero guardado con código anterior → refrescar
     const btn=document.getElementById("btn-generar");
-    if(!haySalida && semRestaurado && tiene("semaforo") && btn && !btn.disabled){ generar(); } };
+    if((!haySalida||viejo) && semRestaurado && tiene("semaforo") && btn && !btn.disabled){ generar(); } };
   setTimeout(autoGen, nubeOn()?5000:400);
   // 2) la nube corre en SEGUNDO PLANO (no bloquea la apertura) y SOLO descarga lo que cambió:
   //    si ya tienes la última versión de un archivo, no se re-descargan sus MB. Todo con timeout.
@@ -1347,48 +1358,56 @@ function segmentoBase(clave,nombre){ return { segmento:nombre, oper:null, bolsaT
 
 function series(filas,seg,etAlias,valAlias){ return filas.filter(r=>norm(txt(col(r,"Segmento")))===norm(seg)).map(r=>({etiqueta:txt(col(r,...etAlias)),valor:num(col(r,...valAlias))})); }
 
-function generar(){
-  const aviso=document.getElementById("aviso"); aviso.className="aviso"; aviso.textContent="Procesando el semáforo… (unos segundos; los archivos grandes tardan más la 1ª vez)";
+// Barra de progreso: el % se lee del ancho animado (compositor), así avanza incluso mientras
+// el hilo está bloqueado parseando el Excel grande.
+const progreso=(()=>{ const g=id=>document.getElementById("progreso").querySelector(id); let label="";
+  const pon=(pct)=>{ g(".progreso-txt").textContent=pct+"% · "+label; };
+  return {
+    // El % se fija por fase (sincrónico); la barra se desliza sola (CSS) hacia ese objetivo,
+    // así avanza incluso mientras el hilo está bloqueado parseando el Excel grande.
+    iniciar(l){ label=l||""; const f=g(".progreso-fill"); f.style.transition="none"; f.style.width="0%";
+      document.getElementById("progreso").classList.add("on"); void f.offsetWidth; pon(0); },
+    a(pct,l,durSeg){ if(l!=null)label=l; const f=g(".progreso-fill"); f.style.transition=`width ${durSeg||0.4}s ease-out`; f.style.width=pct+"%"; pon(pct); },
+    fin(){ label="Listo"; const f=g(".progreso-fill"); f.style.transition="width .3s ease-out"; f.style.width="100%"; pon(100);
+      setTimeout(()=>document.getElementById("progreso").classList.remove("on"),600); }
+  }; })();
+async function generar(){
+  const aviso=document.getElementById("aviso"); aviso.className="aviso"; aviso.textContent="Procesando…";
   document.getElementById("btn-generar").disabled=true;
-  // Ceder el hilo para que se pinte "Procesando…" antes del parseo pesado del Excel.
-  setTimeout(()=>{
+  const ceder=()=>new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0))); // deja pintar la barra antes de bloquear
+  progreso.iniciar("Preparando"); progreso.a(12,"Leyendo archivos",0.5); await ceder();
   try{
     const corte=document.getElementById("m-corte").value.trim();
     const general={corte,llamadas:null,ingresos:null,icp:null,tipif:null};
     const segmentos=SEGMENTOS.map(([k,n])=>({clave:k,data:segmentoBase(k,n)}));
-
-    // 4) llamadas (ACD) → SOLO bloque general
+    // 4) llamadas · 6) icp · 7) tipificación (archivos pequeños)
     if(tiene("llamadas")){ const m=leerLlamadas(wb("llamadas")); general.llamadas=[...m.values()][0]||null; }
-
-    // 6) ingresos/cierres/pendientes · 7) tipificación → bloque general
     if(tiene("icp")){ general.icp=leerICP(wb("icp")); }
     if(tiene("tipif")){ general.tipif=leerTipif(wb("tipif")); }
-
-    // 1) semáforo → operativos por segmento (Sin/Con COFO) + ingresos por canal
+    // 1) semáforo (el pesado): la barra avanza hacia 88% mientras se parsea/analiza.
+    progreso.a(75,"Leyendo y analizando el semáforo",24); await ceder();
     if(tiene("semaforo")){ const sem=leerSemaforo(wb("semaforo")); general.ingresos=sem.general;
       for(const s of segmentos) s.data.oper=sem.porSeg.get(s.clave)||null; }
-
     // 2+3) bolsa completa con base de clientes + respaldo semáforo
+    progreso.a(90,"Cruzando la bolsa",2); await ceder();
     let notaBolsa="";
     if(tiene("bolsa")){ const clientes=tiene("clientes")?leerClientes(wb("clientes")):new Map(); const resp=tiene("semaforo")?mapaNitSegmento(wb("semaforo")):new Map();
       const resolver=nit=>clientes.get(nit)||resp.get(nit); const {porSeg,total,clas,sin}=leerBolsa(wb("bolsa"),resolver);
       for(const s of segmentos){ const x=porSeg.get(s.clave); if(x){ s.data.bolsaTotal=x; s.data.bolsa=x.otros; } }
-      // Bolsa OTROS General = suma de todos los segmentos (para la tabla del bloque General).
       general.bolsaOtros=[].concat(...segmentos.map(s=>s.data.bolsa||[]));
-      // Cruce Casos altos ↔ bolsa por incidente: marca a espera de COFO/CPE/GPON/OTROS.
       const mBolsa=mapaBolsaResp(wb("bolsa"));
       for(const s of segmentos){ const ca=s.data.oper&&s.data.oper.casosAltos; if(!ca)continue;
         for(const c of ca){ const resp=mBolsa.get(norm(c.inc)); c.estado=resp!==undefined?(etiquetaBolsa(resp)||"OTROS"):"—"; } }
       notaBolsa=` · Bolsa: ${clas}/${total} clasificados (${sin} sin segmento)`; }
-
+    progreso.a(97,"Dibujando tableros",1.2); await ceder();
     render(general,segmentos);
     guardarDashboard(); // persiste el tablero (local + nube) para que aparezca solo al abrir
     aviso.className="aviso"; aviso.textContent="Listo."+notaBolsa;
     document.getElementById("btn-todo").style.display="inline-block";
     document.getElementById("btn-ppt").style.display="inline-block";
-  }catch(err){ console.error(err); aviso.className="aviso err"; aviso.textContent="Error: "+err.message; }
+    progreso.fin();
+  }catch(err){ console.error(err); aviso.className="aviso err"; aviso.textContent="Error: "+err.message; progreso.fin(); }
   finally{ document.getElementById("btn-generar").disabled=false; }
-  }, 20);
 }
 
 // Menú de pestañas: siempre "Datos" primero + una por sección generada.
@@ -1435,12 +1454,14 @@ function guardarDashboard(){
   const salida=document.getElementById("salida");
   const secs=[...salida.querySelectorAll(".seccion")].map(s=>({clave:s.dataset.seccion,titulo:s.querySelector(".seg-tit")?.textContent||s.dataset.seccion}));
   const snap={ html:salida.innerHTML, secs, corte:document.getElementById("m-corte").value.trim(),
-    fileVers:Object.assign({},verSlot), ver:Date.now().toString(36)+Math.random().toString(36).slice(2,6), ts:Date.now() };
+    fileVers:Object.assign({},verSlot), appVer:APP_VERSION, ver:Date.now().toString(36)+Math.random().toString(36).slice(2,6), ts:Date.now() };
+  dashAppVerActual=APP_VERSION;
   idbPut("__dash",snap);
   if(nubeOn()){ (async()=>{ try{ await sbSubir("dashboard.json",new TextEncoder().encode(JSON.stringify(snap)),"application/json",120000); }catch(e){ console.warn("nube dash",e); } })(); }
   return snap;
 }
 function pintarDashboard(snap){ if(!snap||!snap.html)return false;
+  dashAppVerActual=snap.appVer||null;
   const salida=document.getElementById("salida"); salida.innerHTML=snap.html;
   document.getElementById("paneles").classList.remove("exportando");
   construirTabs(snap.secs&&snap.secs.length?snap.secs:[{clave:"general",titulo:"General"}]);
