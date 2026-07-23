@@ -41,11 +41,22 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     --navy:#00346D; --navy2:#0E3875; --cian:#0094C0; --cian2:#2AC3F3;
     --naranja:#FF6523; --linea:#2E6E8E; --dorado:#8A7D1E; --gris:#7C8894;
     --grisc:#E6ECEE; --texto:#1E2124; --ok:#1f8a4c; --mal:#c0392b;
-    /* neumorfismo (solo shell: fondo, tarjeta de carga y menú; NO toca los bloques del tablero) */
+    /* neumorfismo (solo shell; NO toca los bloques del tablero) */
     --neu:#e8edf3; --neu-lo:#c7d0dc; --neu-hi:#ffffff;
+    /* Tokens del SHELL (estilo Pulso). Los bloques exportables NO los usan → no cambian al exportar. */
+    --canvas:#E9EFF7; --surface:#FFFFFF; --surface-2:#F2F6FB;
+    --ink:#12233F; --ink-soft:#5A6883; --ink-faint:#93A0B7; --line:#E2E9F2;
+    --side:#06305F; --side-2:#0B7FB0; --primary:#0094C0; --primary-50:#E1F3FB;
+  }
+  /* Tema oscuro: solo redefine tokens del shell + neumorfismo; los bloques del tablero quedan iguales. */
+  :root[data-theme="dark"]{
+    --canvas:#0C1320; --surface:#141D2B; --surface-2:#1B2534;
+    --ink:#E7ECF4; --ink-soft:#A2B0C6; --ink-faint:#6F7E96; --line:#28323F;
+    --side:#072544; --side-2:#0A5E86; --primary:#28B7E6; --primary-50:#123147;
+    --neu:#161f2c; --neu-lo:#0d141d; --neu-hi:#22303f;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--texto);background:var(--neu);padding:20px;position:relative}
+  body{font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--ink);background:var(--canvas);position:relative;min-height:100vh}
   /* Aurora UI: capa de fondo suave detrás del contenido (z-index:-1, no afecta las capturas PNG) */
   .aurora{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden;filter:blur(72px);opacity:.55;
     background:
@@ -56,43 +67,98 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     animation:auroraFlow 26s ease-in-out infinite alternate}
   @keyframes auroraFlow{from{transform:translate3d(-2%,-1%,0) scale(1)}to{transform:translate3d(2%,2%,0) scale(1.08)}}
   @media (prefers-reduced-motion:reduce){.aurora{animation:none}}
-  h1{color:var(--navy);font-size:22px;margin-bottom:4px}
-  .sub{color:var(--gris);font-size:14px}
-  .topbar{display:flex;align-items:center;gap:18px;margin-bottom:18px;padding:16px 22px;border-radius:20px;background:var(--neu);box-shadow:9px 9px 22px var(--neu-lo),-9px -9px 22px var(--neu-hi);max-width:1100px}
-  .topbar-logo{height:44px;width:auto;border-radius:10px;padding:6px 10px;background:#fff;box-shadow:inset 2px 2px 5px var(--neu-lo),inset -2px -2px 5px var(--neu-hi)}
-  .topbar-txt h1{margin-bottom:2px}
-  .btn-actualizar{margin-left:auto;align-self:center;white-space:nowrap;border:0;cursor:pointer;font-weight:800;font-size:14px;color:#fff;background:var(--navy,#00346D);padding:11px 18px;border-radius:14px;box-shadow:5px 5px 14px var(--neu-lo),-5px -5px 14px var(--neu-hi)}
-  .btn-actualizar:hover{filter:brightness(1.08)}
-  .btn-actualizar:active{box-shadow:inset 3px 3px 8px rgba(0,0,0,.25)}
+  h1{color:var(--ink);font-size:22px;margin-bottom:4px}
+  .sub{color:var(--ink-soft);font-size:14px}
+
+  /* ============ NUEVO SHELL (estilo Pulso): intro + sidebar + main ============ */
+  /* Intro: entrada a los tableros con luz giratoria */
+  .intro{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:24px;
+    background:radial-gradient(1100px 640px at 74% -12%,rgba(42,195,243,.30),transparent 60%),linear-gradient(155deg,#04223f,#06305F 45%,#0B7FB0);
+    transition:opacity .6s ease, visibility .6s}
+  .intro.hidden{opacity:0;visibility:hidden}
+  .intro-card{position:relative;width:min(430px,92vw);border-radius:24px;padding:2px;isolation:isolate}
+  .intro-glow{position:absolute;inset:-72%;z-index:0;border-radius:50%;pointer-events:none;
+    background:conic-gradient(from 0deg,transparent 0deg,#2AC3F3 70deg,#7FD3F2 110deg,#0094C0 155deg,transparent 245deg,transparent 360deg);
+    filter:blur(17px);animation:spin 5.5s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .intro-inner{position:relative;z-index:1;border-radius:22px;background:linear-gradient(180deg,#0c2e54,#08203a);
+    padding:42px 34px;text-align:center;border:1px solid rgba(255,255,255,.10)}
+  .intro-logo{height:52px;background:#fff;border-radius:12px;padding:8px 12px;margin:0 auto 22px;display:block;box-shadow:0 12px 34px rgba(0,0,0,.4)}
+  .intro-kicker{font-size:11px;letter-spacing:2.4px;text-transform:uppercase;color:#7FD3F2;font-weight:700}
+  .intro-title{font-size:34px;font-weight:800;color:#fff;letter-spacing:-.6px;margin:9px 0 5px;line-height:1.04}
+  .intro-sub{font-size:14px;color:#A9CDE8;margin-bottom:28px;letter-spacing:.2px}
+  .intro-btn{display:inline-flex;align-items:center;gap:9px;border:0;cursor:pointer;font-weight:800;font-size:15px;color:#04223f;font-family:inherit;
+    background:linear-gradient(135deg,#7FD3F2,#2AC3F3);padding:14px 26px;border-radius:14px;transition:.18s;box-shadow:0 14px 36px -8px rgba(42,195,243,.65)}
+  .intro-btn:hover{transform:translateY(-2px);box-shadow:0 20px 48px -8px rgba(42,195,243,.8)}
+  @media (prefers-reduced-motion:reduce){.intro-glow{animation:none}}
+
+  /* App: sidebar + main */
+  .app{display:flex;min-height:100vh}
+  .side{width:250px;flex-shrink:0;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;padding:20px 14px;
+    background:linear-gradient(168deg,var(--side),var(--side-2));color:#D6ECFB;box-shadow:2px 0 34px rgba(0,0,0,.14);z-index:10}
+  .brand{display:flex;align-items:center;gap:11px;padding:4px 8px 16px;border-bottom:1px solid rgba(255,255,255,.13);margin-bottom:10px}
+  .brand-logo{width:42px;height:42px;border-radius:11px;background:#fff;padding:5px;object-fit:contain;box-shadow:0 4px 14px rgba(0,0,0,.28)}
+  .brandname{font-weight:800;font-size:19px;color:#fff;letter-spacing:-.4px;line-height:1}
+  .brandsub{font-size:10.5px;color:#9FCDEC;letter-spacing:.4px;margin-top:3px}
+  .navlbl{font-size:10px;text-transform:uppercase;letter-spacing:1.4px;color:#7FB7E6;padding:12px 12px 7px;font-weight:700}
+  .tabs{display:none;flex-direction:column;gap:3px;background:none;box-shadow:none;padding:0;margin:0;max-width:none;overflow:auto}
+  .tab{display:flex;align-items:center;gap:10px;padding:11px 13px;border-radius:11px;border:1px solid transparent;background:transparent;
+    color:#C8E2F8;font-weight:600;font-size:13.5px;cursor:pointer;text-align:left;transition:.15s;font-family:inherit;width:100%;box-shadow:none}
+  .tab::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.45;flex-shrink:0}
+  .tab:hover{background:rgba(255,255,255,.09);color:#fff}
+  .tab.activa{background:rgba(255,255,255,.20);color:#fff;border-color:rgba(255,255,255,.30)}
+  .tab.activa::before{opacity:1;box-shadow:0 0 9px currentColor}
+  .sidefoot{margin-top:auto;padding-top:12px;border-top:1px solid rgba(255,255,255,.13)}
+  .side-btn{display:flex;align-items:center;gap:9px;width:100%;padding:10px 12px;border-radius:11px;border:1px solid rgba(255,255,255,.18);
+    background:rgba(255,255,255,.07);color:#EAF5FF;font-weight:600;font-size:12.5px;cursor:pointer;transition:.15s;font-family:inherit}
+  .side-btn:hover{background:rgba(255,255,255,.15)}
+  .appcredit{text-align:center;margin-top:12px;font-size:10px;color:rgba(230,244,255,.5);letter-spacing:.3px;line-height:1.7}
+
+  .main{flex:1;min-width:0;display:flex;flex-direction:column}
+  .topbar2{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:16px;
+    padding:15px 26px;background:var(--surface);border-bottom:1px solid var(--line)}
+  .tb-title{font-size:19px;font-weight:800;color:var(--ink);letter-spacing:-.3px}
+  .tb-sub{font-size:12px;color:var(--ink-soft);margin-top:1px}
+  .content-wrap{padding:22px 26px;width:100%;max-width:1420px}
+  .btn-actualizar{margin:0;white-space:nowrap;border:0;cursor:pointer;font-weight:800;font-size:13.5px;color:#fff;font-family:inherit;
+    background:linear-gradient(135deg,var(--primary),var(--side));padding:11px 18px;border-radius:12px;transition:.15s;box-shadow:0 8px 20px -8px var(--primary)}
+  .btn-actualizar:hover{filter:brightness(1.09);transform:translateY(-1px)}
+  .btn-actualizar:active{transform:none}
   .btn-actualizar:disabled{opacity:.6;cursor:default}
-  .btn-actualizar.pulsa{background:var(--naranja,#FF6523)}
-  .panel-carga{background:var(--neu);border-radius:20px;padding:22px 26px;box-shadow:9px 9px 22px var(--neu-lo),-9px -9px 22px var(--neu-hi);margin-bottom:18px;max-width:1100px}
-  .grid-inputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:10px}
-  .campo{border:0;border-radius:14px;padding:14px 16px;background:var(--neu);box-shadow:inset 4px 4px 9px var(--neu-lo),inset -4px -4px 9px var(--neu-hi)}
-  .campo label{display:block;font-weight:700;color:var(--navy);font-size:13.5px;margin-bottom:6px}
-  .campo .hint{font-size:12px;color:var(--gris);margin-bottom:8px}
-  .campo input[type=file]{font-size:12.5px;width:100%}
+  .btn-actualizar.pulsa{background:linear-gradient(135deg,var(--naranja),#d84f16);box-shadow:0 8px 22px -8px var(--naranja)}
+
+  /* Datos (tarjeta de carga) con tokens (adapta a claro/oscuro) */
+  .panel-carga{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px 26px;margin-bottom:18px;box-shadow:0 2px 12px rgba(20,35,63,.05)}
+  .grid-inputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:4px}
+  .campo{border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:var(--surface-2)}
+  .campo label{display:block;font-weight:700;color:var(--ink);font-size:13.5px;margin-bottom:6px}
+  .campo .hint{font-size:12px;color:var(--ink-soft);margin-bottom:8px}
+  .campo input[type=file]{font-size:12.5px;width:100%;color:var(--ink-soft)}
   .campo .ok{color:var(--ok);font-size:12px;font-weight:700;margin-top:6px}
   .manual{display:flex;flex-wrap:wrap;gap:14px;margin-top:14px}
-  .manual label{font-size:12.5px;font-weight:700;color:var(--navy);display:flex;flex-direction:column;gap:4px}
-  .manual input{padding:8px 12px;border:0;border-radius:10px;font-size:13px;min-width:120px;background:var(--neu);color:var(--texto);box-shadow:inset 3px 3px 7px var(--neu-lo),inset -3px -3px 7px var(--neu-hi)}
+  .manual label{font-size:12.5px;font-weight:700;color:var(--ink);display:flex;flex-direction:column;gap:4px}
+  .manual input{padding:9px 12px;border:1px solid var(--line);border-radius:10px;font-size:13px;min-width:120px;background:var(--surface);color:var(--ink)}
   .acciones{margin-top:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-  button.primario{background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;border:0;border-radius:12px;padding:11px 22px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:6px 6px 14px var(--neu-lo),-6px -6px 14px var(--neu-hi);transition:.15s}
-  button.primario:hover{filter:brightness(1.08)}
-  button.primario:active{box-shadow:inset 4px 4px 9px rgba(0,0,0,.28)}
-  button.sec{background:var(--neu);color:var(--navy);border:0;border-radius:11px;padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer;box-shadow:5px 5px 12px var(--neu-lo),-5px -5px 12px var(--neu-hi);transition:.15s}
-  button.sec:hover{color:var(--cian)}
-  button.sec:active{box-shadow:inset 4px 4px 9px var(--neu-lo),inset -4px -4px 9px var(--neu-hi)}
-  .aviso{font-size:12.5px;color:var(--gris)}
+  button.primario{background:linear-gradient(135deg,var(--side),var(--primary));color:#fff;border:0;border-radius:12px;padding:11px 22px;font-size:14px;font-weight:700;cursor:pointer;transition:.15s;box-shadow:0 10px 24px -10px var(--primary)}
+  button.primario:hover{filter:brightness(1.08);transform:translateY(-1px)}
+  button.primario:active{transform:none}
+  button.sec{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:11px;padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer;transition:.15s;box-shadow:none}
+  button.sec:hover{border-color:var(--primary);color:var(--primary)}
+  button.sec:active{transform:none}
+  .aviso{font-size:12.5px;color:var(--ink-soft)}
   .aviso.err{color:var(--mal);font-weight:700}
-  /* Menú de pestañas (neumórfico): General + una por segmento */
-  .tabs{display:none;flex-wrap:wrap;gap:12px;align-items:center;margin:22px 0 10px;padding:12px;border-radius:20px;background:var(--neu);box-shadow:inset 3px 3px 8px var(--neu-lo),inset -3px -3px 8px var(--neu-hi);max-width:1100px}
-  .tab{border:0;cursor:pointer;padding:10px 20px;border-radius:13px;font-size:14px;font-weight:800;color:var(--navy);background:var(--neu);box-shadow:5px 5px 11px var(--neu-lo),-5px -5px 11px var(--neu-hi);transition:.16s}
-  .tab:hover{color:var(--cian)}
-  .tab.activa{color:var(--cian);background:linear-gradient(135deg,rgba(0,148,192,.12),rgba(0,52,109,.07));box-shadow:inset 4px 4px 9px var(--neu-lo),inset -4px -4px 9px var(--neu-hi)}
+  .seg-tit{color:var(--ink);font-size:20px;font-weight:800;margin:6px 0 14px;padding-bottom:8px;border-bottom:2px solid var(--line)}
+  @media (max-width:860px){
+    .app{flex-direction:column}
+    .side{width:100%;height:auto;position:static;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px;padding:12px}
+    .brand{border:0;margin:0;padding:0}
+    .navlbl{display:none}
+    .tabs{flex-direction:row;flex-wrap:wrap;flex:1}
+    .sidefoot{margin:0;border:0;padding:0;display:flex;gap:8px;align-items:center}
+    .appcredit{display:none}
+  }
   .seccion.oculta{display:none}
   #paneles.exportando .seccion.oculta{display:block}
-  .seg-tit{color:var(--navy);font-size:20px;font-weight:800;margin:8px 0 6px;padding-bottom:6px;border-bottom:2px solid rgba(0,52,109,.14)}
   .bloque-wrap{position:relative;display:inline-block;vertical-align:top;margin:10px}
   .bloque-wrap .btnpng{position:absolute;top:16px;right:16px;z-index:5;opacity:.85}
   /* ---- estilo del tablero (idéntico a la herramienta) ---- */
@@ -231,18 +297,41 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 </head>
 <body>
 <div class="aurora"></div>
-<header class="topbar">
-  <img id="app-logo" class="topbar-logo" alt="eTb" />
-  <div class="topbar-txt">
-    <h1>Tablero de comité — Soporte eTb</h1>
-    <div class="sub">Sube los archivos de la semana y genera las imágenes por segmento, listas para copiar/pegar en la presentación.</div>
-  </div>
-  <button id="btn-actualizar" class="btn-actualizar" title="Recalcular el tablero con los archivos cargados">↻ Actualizar</button>
-</header>
 
-<div id="tabs" class="tabs"></div>
-<div id="paneles">
-<section class="seccion" data-seccion="datos" id="sec-datos">
+<div id="intro" class="intro">
+  <div class="intro-card">
+    <div class="intro-glow"></div>
+    <div class="intro-inner">
+      <img class="intro-logo" id="intro-logo" alt="eTb" />
+      <div class="intro-kicker">Dirección de Operaciones</div>
+      <div class="intro-title">Comité de Soporte</div>
+      <div class="intro-sub">Empresas · Gobierno · Mayoristas</div>
+      <button id="btn-ingresar" class="intro-btn">Ingresar a los tableros →</button>
+    </div>
+  </div>
+</div>
+
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <img id="app-logo" class="brand-logo" alt="eTb" />
+      <div><div class="brandname">Comité ETB</div><div class="brandsub">Soporte · Mayoristas</div></div>
+    </div>
+    <div class="navlbl">Tableros</div>
+    <nav id="tabs" class="tabs"></nav>
+    <div class="sidefoot">
+      <button id="btn-tema" class="side-btn">🌙 Modo oscuro</button>
+      <div class="appcredit">eTb · Dirección de Operaciones<br/>Serás lo que creas</div>
+    </div>
+  </aside>
+  <main class="main">
+    <div class="topbar2">
+      <div><div class="tb-title" id="tb-title">Datos</div><div class="tb-sub" id="tb-sub">Carga de archivos y generación</div></div>
+      <button id="btn-actualizar" class="btn-actualizar" title="Recalcular el tablero con los archivos cargados">↻ Actualizar</button>
+    </div>
+    <div class="content-wrap">
+    <div id="paneles">
+    <section class="seccion" data-seccion="datos" id="sec-datos">
 <div class="panel-carga">
   <div class="grid-inputs">
     <div class="campo">
@@ -297,6 +386,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 </div>
 </section>
 <div id="salida"></div>
+    </div>
+    </div>
+  </main>
 </div>
 
 <script>
@@ -1265,7 +1357,11 @@ function construirTabs(secciones){
 }
 function activarTab(clave){
   document.querySelectorAll("#paneles .seccion").forEach(s=>s.classList.toggle("oculta",s.dataset.seccion!==clave));
-  document.querySelectorAll("#tabs .tab").forEach(t=>t.classList.toggle("activa",t.dataset.tab===clave));
+  let lbl="";
+  document.querySelectorAll("#tabs .tab").forEach(t=>{ const on=t.dataset.tab===clave; t.classList.toggle("activa",on); if(on)lbl=t.textContent; });
+  const tt=document.getElementById("tb-title"); if(tt)tt.textContent=lbl||"Tablero";
+  const ts=document.getElementById("tb-sub"); if(ts)ts.textContent = clave==="datos"?"Carga de archivos y generación":(clave==="general"?"Resumen general de atención y casos":"Análisis del segmento "+(lbl||""));
+  window.scrollTo(0,0);
 }
 function render(general,segmentos){
   const cont=document.getElementById("salida"); cont.innerHTML="";
@@ -1412,9 +1508,26 @@ async function generarPPT(){
   finally{ paneles.classList.remove("exportando"); btn.disabled=false; }
 }
 document.getElementById("btn-ppt").addEventListener("click",generarPPT);
-// Estado inicial: logo + pestaña "Datos" visible (carga de archivos) hasta que se genere el tablero.
-{ const lg=document.getElementById("app-logo"); if(lg)lg.src=LOGO_ETB; }
+// Estado inicial: logos (sidebar + intro) + pestaña "Datos".
+{ const lg=document.getElementById("app-logo"); if(lg)lg.src=LOGO_ETB;
+  const il=document.getElementById("intro-logo"); if(il)il.src=LOGO_ETB; }
 construirTabs([]); activarTab("datos");
+
+// ===== Tema claro/oscuro (persistente) =====
+(function(){ const KEY="comite-tema";
+  const aplicar=t=>{ document.documentElement.dataset.theme=t; try{localStorage.setItem(KEY,t);}catch(e){}
+    const b=document.getElementById("btn-tema"); if(b)b.textContent = t==="dark"?"☀️  Modo claro":"🌙  Modo oscuro"; };
+  let saved; try{ saved=localStorage.getItem(KEY); }catch(e){}
+  if(!saved)saved=(window.matchMedia&&matchMedia("(prefers-color-scheme:dark)").matches)?"dark":"light";
+  aplicar(saved);
+  const b=document.getElementById("btn-tema"); if(b)b.addEventListener("click",()=>aplicar(document.documentElement.dataset.theme==="dark"?"light":"dark"));
+})();
+
+// ===== Intro (entrada a los tableros) =====
+(function(){ const intro=document.getElementById("intro"), btn=document.getElementById("btn-ingresar");
+  if(!intro||!btn)return;
+  btn.addEventListener("click",()=>{ intro.classList.add("hidden"); setTimeout(()=>{ intro.style.display="none"; },650); });
+})();
 </script>
 </body>
 </html>

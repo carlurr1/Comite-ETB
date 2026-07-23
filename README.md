@@ -16,6 +16,11 @@ Hay dos formas de usarlo:
 Página autónoma (un solo archivo, SheetJS y logo eTb incrustados; funciona
 **offline**).
 
+**Interfaz (estilo tablero real):** pantalla de **entrada** con luz giratoria y botón
+*Ingresar a los tableros*; **menú lateral** (Datos + General + un tablero por segmento);
+y **modo claro / oscuro** con un toggle (se recuerda). El diseño del shell NO afecta las
+gráficas exportables: se exportan igual (fondo blanco) en cualquiera de los dos modos.
+
 1. Entra a la URL de Vercel (o abre `index.html` con doble clic en Chrome/Edge).
 2. Sube los archivos de la semana:
    - **Semáforo de soporte** → operativos por segmento **Sin y Con COFO** (Resolutividad,
