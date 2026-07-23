@@ -168,7 +168,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .panel-title{font-size:26px;font-weight:800;color:var(--navy)}
   .panel-sub{font-size:15px;font-weight:700;color:var(--navy);opacity:.8}
   .logo{height:34px}
-  .seccion-label{font-size:15px;font-weight:700;color:var(--gris);text-transform:uppercase;letter-spacing:.5px;margin:10px 0 8px}
+  .seccion-label{font-size:15px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.5px;margin:10px 0 8px}
   .tiles{display:flex;flex-wrap:wrap;gap:14px}
   .tile{min-width:128px;padding:10px 14px;border-left:4px solid var(--cian);background:#F7FAFB;border-radius:6px}
   .tile-label{font-size:12.5px;font-weight:700;color:var(--gris)}
@@ -198,7 +198,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .flecha{display:flex;align-items:center;color:var(--cian);font-size:32px;font-weight:900}
   .grupo{border:1px solid var(--grisc);border-radius:10px;padding:14px 16px}
   .grupo.at{flex:1.35}.grupo.ra{flex:1}.grupo.op{flex:1.5}
-  .grupo-tit{font-size:13px;font-weight:800;color:var(--gris);text-transform:uppercase;letter-spacing:.4px;margin-bottom:12px}
+  .grupo-tit{font-size:13px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.4px;margin-bottom:12px}
   .s-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 20px}
   .s-lbl{font-size:12px;font-weight:700;color:var(--gris)}
   .s-val{font-size:25px;font-weight:800;color:var(--dorado);line-height:1.1}
@@ -575,6 +575,16 @@ function analizarBBDD(wb){
     for(const f of ingArr){ const a=apertura(f); if(a)toca(diaKey(a)).ing++; }
     for(const f of cerrArr){ const c=cierre(f); if(c)toca(diaKey(c)).cie++; }
     return[...dias.keys()].sort().map(k=>({dia:k,ing:dias.get(k).ing,cie:dias.get(k).cie})); };
+  // Serie diaria General (todos los segmentos): Ingresos (por apertura), Cierres (por cierre), Pendientes (por apertura).
+  // Ingresos/Cierres por día (ventana con movimiento) + Pendientes = cuántos hay en total (BASE=pendientes).
+  const serieICPGeneral=()=>{ const dias=new Map(); const toca=k=>dias.get(k)??dias.set(k,{ing:0,cie:0}).get(k);
+    const activos=new Set(); let pendientes=0;
+    for(const f of filas){ const base=norm(col(f,"BASE"));
+      if(base==="ingresos"){ const a=apertura(f); if(a){const k=diaKey(a); toca(k).ing++; activos.add(k);} }
+      else if(base==="cerrados"){ const c=cierre(f); if(c){const k=diaKey(c); toca(k).cie++; activos.add(k);} }
+      else if(base==="pendientes"){ pendientes++; } }
+    const serie=[...dias.keys()].filter(k=>activos.has(k)).sort().slice(-31).map(k=>({dia:k,...dias.get(k)}));
+    return { serie, pendientes }; };
 
   // TMS promedio incluyendo ceros (igual que el oficial): suma/conteo de la población.
   const promT=arr=>arr.length? arr.reduce((a,f)=>a+tmsVal(f),0)/arr.length*24 : 0;
@@ -612,7 +622,7 @@ function analizarBBDD(wb){
     tmbHoras:promTMB(n.cerrados), masivos:contarMasivos(n.cerrados), clientesMasivos:topClientesMasivos(n.cerrados),
     imput:impDist(n.cerrados), ingCierreSerie:serieIngCierre(n.ingresosRows,n.cerrados), catResolCofo:topCatResolDe(n.cerrados.filter(f=>!masTMS(f)&&cofoTMS(f))),
     clientesReportan:reportanConTMS(n.ingresosRows,n.cerrados), casosAltos:casosAltosDe(pendPorSeg.get(k)) });
-  return { porSeg:res, general:{llamada:genLl, correo:genCor, origen:topOrigen(genOrigen)} };
+  return { porSeg:res, general:{llamada:genLl, correo:genCor, origen:topOrigen(genOrigen), icpDiario:serieICPGeneral()} };
 }
 
 function leerSemaforo(wb){
@@ -826,10 +836,11 @@ function grupoOperativos(titulo,m,metaResol,metaTmsHms){
 function composicionTop(items){
   if(!items||!items.length)return`<div class="sl-vacio">Sube el Semáforo (hoja BBDD)</div>`;
   const top=items.slice(0,4); const alto=Math.max(46,top.length*30); const maxN=Math.max(1,...top.map(o=>o.n));
+  const total=items.reduce((a,o)=>a+(o.n||0),0);
   return `<div class="n2-comp">
-    <div class="n2-head"><div class="s-lbl">${top[0].nombre}</div><div class="s-val">${fmt(top[0].n)}</div><div class="s-meta">origen principal (sin cancelados)</div></div>
+    <div class="n2-head"><div class="s-lbl">Total de casos</div><div class="s-val">${fmt(total)}</div><div class="s-meta">creados · sin cancelados</div><div class="s-meta" style="margin-top:7px">se reparte en los<br>principales canales →</div></div>
     ${llave(alto)}
-    <div class="n2-items">${top.map(o=>`<div class="n2-item"><span class="n2-nom" title="${o.nombre}">${o.nombre}</span><span class="n2-bar"><i style="width:${(o.n/maxN*100).toFixed(1)}%"></i></span><b>${fmt(o.n)}</b></div>`).join("")}</div></div>`;
+    <div class="n2-items">${top.map((o,i)=>`<div class="n2-item"><span class="n2-nom" title="${o.nombre}">${i===0?"◆ ":""}${o.nombre}</span><span class="n2-bar"><i style="width:${(o.n/maxN*100).toFixed(1)}%"></i></span><b>${fmt(o.n)}</b><small>${total?Math.round(o.n/total*100):0}%</small></div>`).join("")}</div></div>`;
 }
 // Ingresos/Cierres/Pendientes: por segmento (último mes, a la izquierda) + totales por mes (a la derecha).
 function bloqueICP(icp){ if(!icp||!icp.meses||!icp.meses.length)return"";
@@ -1170,6 +1181,25 @@ function bloqueBolsa(d){ if(!d.bolsa.length)return""; const dias=diasDe(d.bolsa)
   ${estados.map(e=>`<tr><td class="izq">${e}</td>${dias.map(x=>`<td>${celda(e,x)||""}</td>`).join("")}<td class="der b">${fmt(tE(e))}</td></tr>`).join("")}
   <tr class="fila-total"><td class="izq">Total</td>${dias.map(x=>`<td>${fmt(tD(x))}</td>`).join("")}<td class="der b">${fmt(tG)}</td></tr></table></div>`;
 }
+// Tabla diaria (General): Ingresos / Cierres / Pendientes por día, sumando todos los segmentos.
+function bloqueICPDiario(g){ const d=g&&g.ingresos&&g.ingresos.icpDiario; if(!d||!d.serie||!d.serie.length)return"";
+  const s=d.serie; const dn=k=>{ const p=String(k).split("-"); return p[2]?String(+p[2]):k; };
+  const tot=key=>s.reduce((a,x)=>a+(x[key]||0),0);
+  return `<div class="panel tabla" data-capture="icp-diario"><div class="panel-title">Ingresos · Cierres por día — General</div>
+  <table class="tabla-dias grande"><tr class="th"><td>Movimiento</td>${s.map(x=>`<th>${dn(x.dia)}</th>`).join("")}<th>Total</th></tr>
+  <tr><td class="izq">Ingresos</td>${s.map(x=>`<td>${x.ing||""}</td>`).join("")}<td class="der b">${fmt(tot("ing"))}</td></tr>
+  <tr><td class="izq">Cierres</td>${s.map(x=>`<td>${x.cie||""}</td>`).join("")}<td class="der b">${fmt(tot("cie"))}</td></tr>
+  <tr class="fila-total"><td class="izq">Pendientes (en bolsa)</td><td colspan="${s.length}" style="text-align:left;color:var(--gris);font-weight:400">total actual · sin importar días de altura</td><td class="der b">${fmt(d.pendientes)}</td></tr>
+  </table></div>`;
+}
+// Bolsa INC en gestión (OTROS) — General: la misma tabla pero sumando todos los segmentos.
+function bloqueBolsaGeneral(bolsa){ if(!bolsa||!bolsa.length)return""; const dias=diasDe(bolsa), estados=Array.from(new Set(bolsa.map(f=>f.estado).filter(Boolean)));
+  const celda=(e,x)=>bolsa.filter(f=>f.estado===e&&f.dia===x).reduce((s,f)=>s+f.cantidad,0), tE=e=>bolsa.filter(f=>f.estado===e).reduce((s,f)=>s+f.cantidad,0), tD=x=>bolsa.filter(f=>f.dia===x).reduce((s,f)=>s+f.cantidad,0), tG=bolsa.reduce((s,f)=>s+f.cantidad,0);
+  return `<div class="panel tabla" data-capture="bolsa-gen"><div class="panel-title">Bolsa INC en gestión (OTROS) — General (todos los segmentos)</div>
+  <table class="tabla-dias grande"><tr class="th"><td>Estado INC</td>${dias.map(x=>`<th>${x}</th>`).join("")}<th>Total</th></tr>
+  ${estados.map(e=>`<tr><td class="izq">${e}</td>${dias.map(x=>`<td>${celda(e,x)||""}</td>`).join("")}<td class="der b">${fmt(tE(e))}</td></tr>`).join("")}
+  <tr class="fila-total"><td class="izq">Total</td>${dias.map(x=>`<td>${fmt(tD(x))}</td>`).join("")}<td class="der b">${fmt(tG)}</td></tr></table></div>`;
+}
 function bloquesSegmento(d){ const b=[["tablero",bloqueSlide(d)]];
   const push=(k,html)=>{ if(html)b.push([k,html]); };
   push("ing-cierre",bloqueIngCierre(d));
@@ -1331,6 +1361,8 @@ function generar(){
     if(tiene("bolsa")){ const clientes=tiene("clientes")?leerClientes(wb("clientes")):new Map(); const resp=tiene("semaforo")?mapaNitSegmento(wb("semaforo")):new Map();
       const resolver=nit=>clientes.get(nit)||resp.get(nit); const {porSeg,total,clas,sin}=leerBolsa(wb("bolsa"),resolver);
       for(const s of segmentos){ const x=porSeg.get(s.clave); if(x){ s.data.bolsaTotal=x; s.data.bolsa=x.otros; } }
+      // Bolsa OTROS General = suma de todos los segmentos (para la tabla del bloque General).
+      general.bolsaOtros=[].concat(...segmentos.map(s=>s.data.bolsa||[]));
       // Cruce Casos altos ↔ bolsa por incidente: marca a espera de COFO/CPE/GPON/OTROS.
       const mBolsa=mapaBolsaResp(wb("bolsa"));
       for(const s of segmentos){ const ca=s.data.oper&&s.data.oper.casosAltos; if(!ca)continue;
@@ -1377,7 +1409,7 @@ function render(general,segmentos){
       wrap.querySelector("[data-capture]").setAttribute("data-nombre",`${claveSegmento(titulo)}_${ck}.png`);
       sec.appendChild(wrap); }
     cont.appendChild(sec); secciones.push({clave,titulo}); };
-  agregar("general","General",[["tablero",bloqueGeneral(general)]]);
+  agregar("general","General",[["tablero",bloqueGeneral(general)],["icp-diario",bloqueICPDiario(general)],["bolsa-gen",bloqueBolsaGeneral(general.bolsaOtros)]]);
   for(const s of segmentos) agregar(s.clave,s.data.segmento,bloquesSegmento(s.data));
   construirTabs(secciones);
   activarTab(secciones.length?secciones[0].clave:"datos"); // al generar salta al General
@@ -1487,6 +1519,7 @@ async function generarPPT(){
       if(clave==="general"){
         const flujo=sec.querySelector(".flujo"); if(flujo)imgs.push(await _capturar(flujo,"resumen"));
         for(const g of sec.querySelectorAll(".grafica")) imgs.push(await _capturar(g,"grafica"));
+        for(const p of sec.querySelectorAll(".bloque-wrap [data-capture].panel")) imgs.push(await _capturar(p,p.getAttribute("data-capture")));
       } else {
         for(const b of sec.querySelectorAll(".bloque-wrap [data-capture]")) imgs.push(await _capturar(b,b.getAttribute("data-capture")));
       }
