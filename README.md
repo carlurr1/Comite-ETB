@@ -115,6 +115,13 @@ y **cualquiera** que abra la página lo carga solo, sin volver a subirlo (modelo
    const SUPABASE={ url:"https://xxxxx.supabase.co", anon:"eyJ...", bucket:"comite" };
    ```
 
+**Rendimiento / resiliencia:** la nube nunca bloquea la app. Al abrir, todo se restaura al
+instante desde el navegador (IndexedDB) y la sincronización con la nube corre **en segundo
+plano, con timeout**: si la red está lenta o caída, la herramienta sigue funcionando con lo
+local (no se queda "cargando"). Además cada archivo lleva una **versión**: si ya tienes la
+última, **no se vuelven a descargar sus MB** (clave con el semáforo, que pesa ~20 MB). Al
+subir, el archivo queda **usable de inmediato** y la subida a la nube ocurre por detrás.
+
 **Seguridad:** la `anon key` es pública (va en el cliente, es lo normal en Supabase). Con las
 políticas de arriba, cualquiera que tenga la URL de la página puede leer/reemplazar los archivos
 del bucket `comite`. Para una herramienta interna del comité suele ser aceptable; si quieres
