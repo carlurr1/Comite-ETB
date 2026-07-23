@@ -117,7 +117,9 @@ y **cualquiera** que abra la página lo carga solo, sin volver a subirlo (modelo
 
 **Tablero persistente (aparece solo):** al **Generar**, el tablero ya armado se guarda
 (local + nube, ~250 KB) y **aparece solo al abrir** en cualquier PC, sin volver a parsear el
-semáforo ni pulsar Generar. Solo se recalcula cuando alguien **sube archivos nuevos y vuelve a
+semáforo ni pulsar Generar. Si al abrir hay archivos guardados pero aún no hay tablero (p. ej. la
+primera vez), se **arma solo** (auto-generado) sin que pulses nada; el botón **↻ Actualizar** del
+encabezado sirve para regenerar cuando subes archivos nuevos. Solo se recalcula cuando alguien **sube archivos nuevos y vuelve a
 Generar** (ese paga el parseo de una vez; el resto ve el resultado al instante). Si alguien
 subió archivos nuevos pero no ha regenerado, se avisa "hay archivos nuevos: pulsa Generar".
 La exportación **PNG/PPT sigue funcionando** sobre el tablero guardado (no re-parsea).
