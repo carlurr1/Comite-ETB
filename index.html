@@ -61,6 +61,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .topbar{display:flex;align-items:center;gap:18px;margin-bottom:18px;padding:16px 22px;border-radius:20px;background:var(--neu);box-shadow:9px 9px 22px var(--neu-lo),-9px -9px 22px var(--neu-hi);max-width:1100px}
   .topbar-logo{height:44px;width:auto;border-radius:10px;padding:6px 10px;background:#fff;box-shadow:inset 2px 2px 5px var(--neu-lo),inset -2px -2px 5px var(--neu-hi)}
   .topbar-txt h1{margin-bottom:2px}
+  .btn-actualizar{margin-left:auto;align-self:center;white-space:nowrap;border:0;cursor:pointer;font-weight:800;font-size:14px;color:#fff;background:var(--navy,#00346D);padding:11px 18px;border-radius:14px;box-shadow:5px 5px 14px var(--neu-lo),-5px -5px 14px var(--neu-hi)}
+  .btn-actualizar:hover{filter:brightness(1.08)}
+  .btn-actualizar:active{box-shadow:inset 3px 3px 8px rgba(0,0,0,.25)}
+  .btn-actualizar:disabled{opacity:.6;cursor:default}
+  .btn-actualizar.pulsa{background:var(--naranja,#FF6523)}
   .panel-carga{background:var(--neu);border-radius:20px;padding:22px 26px;box-shadow:9px 9px 22px var(--neu-lo),-9px -9px 22px var(--neu-hi);margin-bottom:18px;max-width:1100px}
   .grid-inputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:10px}
   .campo{border:0;border-radius:14px;padding:14px 16px;background:var(--neu);box-shadow:inset 4px 4px 9px var(--neu-lo),inset -4px -4px 9px var(--neu-hi)}
@@ -232,6 +237,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     <h1>Tablero de comité — Soporte eTb</h1>
     <div class="sub">Sube los archivos de la semana y genera las imágenes por segmento, listas para copiar/pegar en la presentación.</div>
   </div>
+  <button id="btn-actualizar" class="btn-actualizar" title="Recalcular el tablero con los archivos cargados">↻ Actualizar</button>
 </header>
 
 <div id="tabs" class="tabs"></div>
@@ -1297,7 +1303,8 @@ function pintarDashboard(snap){ if(!snap||!snap.html)return false;
   // aviso si hay archivos más nuevos que el tablero guardado (alguien subió pero no regeneró)
   const nuevos=SLOTS.some(c=>verSlot[c]&&snap.fileVers&&snap.fileVers[c]!==undefined&&verSlot[c]!==snap.fileVers[c]);
   const av=document.getElementById("aviso");
-  if(av)av.textContent = nuevos ? "Tablero guardado — hay archivos nuevos: pulsa Generar para actualizarlo." : "Tablero cargado (guardado).";
+  if(av)av.textContent = nuevos ? "Tablero guardado — hay archivos nuevos: pulsa Actualizar." : "Tablero cargado (guardado).";
+  const ba=document.getElementById("btn-actualizar"); if(ba)ba.classList.toggle("pulsa",nuevos);
   return true;
 }
 
@@ -1316,6 +1323,13 @@ async function bloqueABlob(el,escala=3){
 async function descargarPng(el,nombre){ const blob=await bloqueABlob(el); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=nombre; a.click(); URL.revokeObjectURL(a.href); }
 
 document.getElementById("btn-generar").addEventListener("click",()=>{ generar(); });
+// "Actualizar" (en el encabezado, siempre visible): recalcula con los archivos cargados; si no
+// hay semáforo, lleva a la pestaña Datos para subirlos. Quita el resalte de "archivos nuevos".
+document.getElementById("btn-actualizar").addEventListener("click",()=>{
+  const b=document.getElementById("btn-actualizar");
+  if(!tiene("semaforo")){ activarTab("datos"); const av=document.getElementById("aviso"); if(av){av.className="aviso";av.textContent="Sube el semáforo (y los demás archivos) y pulsa Actualizar.";} return; }
+  b.classList.remove("pulsa"); generar();
+});
 document.getElementById("btn-todo").addEventListener("click",async()=>{ const paneles=document.getElementById("paneles");
   paneles.classList.add("exportando"); // revela todas las secciones (incluidas las de pestañas no activas) para poder capturarlas
   try{ const bs=document.querySelectorAll("#salida .bloque-wrap [data-capture]");
