@@ -1113,11 +1113,16 @@ const SUPABASE={ url:"https://mdvhgfwzyslllevwptzd.supabase.co", anon:"sb_publis
 const nubeOn=()=> !!(SUPABASE.url && SUPABASE.anon);
 const sbUrl=p=>`${SUPABASE.url}/storage/v1/object/${SUPABASE.bucket}/${p}`;
 const sbHead=extra=>Object.assign({apikey:SUPABASE.anon,Authorization:"Bearer "+SUPABASE.anon},extra||{});
-async function sbSubir(path,buf,tipo){ const r=await fetch(sbUrl(path),{method:"POST",headers:sbHead({"Content-Type":tipo||"application/octet-stream","x-upsert":"true"}),body:buf}); if(!r.ok)throw new Error("nube subir "+r.status); }
-async function sbBajar(path){ const r=await fetch(sbUrl(path),{headers:sbHead(),cache:"no-store"}); if(r.status===404||r.status===400)return null; if(!r.ok)throw new Error("nube bajar "+r.status); return await r.arrayBuffer(); }
-async function sbBajarJSON(path){ try{ const b=await sbBajar(path); return b?JSON.parse(new TextDecoder().decode(b)):null; }catch(e){ return null; } }
-async function sbMetaGuardar(patch){ const meta=await sbBajarJSON("meta.json")||{names:{}}; meta.names=Object.assign(meta.names||{},patch.names||{}); if("corte" in patch)meta.corte=patch.corte;
-  await sbSubir("meta.json",new TextEncoder().encode(JSON.stringify(meta)),"application/json"); return meta; }
+// fetch con timeout: la nube NUNCA puede colgar la app. Si tarda más de lo dado, se aborta
+// y todo sigue funcionando con lo local (IndexedDB). Así abrir/cargar nunca se queda pegado.
+async function sbFetch(url,opts,ms){ const ac=new AbortController(); const t=setTimeout(()=>ac.abort(),ms||15000);
+  try{ return await fetch(url,Object.assign({signal:ac.signal},opts||{})); } finally{ clearTimeout(t); } }
+async function sbSubir(path,buf,tipo,ms){ const r=await sbFetch(sbUrl(path),{method:"POST",headers:sbHead({"Content-Type":tipo||"application/octet-stream","x-upsert":"true"}),body:buf},ms||120000); if(!r.ok)throw new Error("nube subir "+r.status); }
+async function sbBajar(path,ms){ const r=await sbFetch(sbUrl(path),{headers:sbHead(),cache:"no-store"},ms||60000); if(r.status===404||r.status===400)return null; if(!r.ok)throw new Error("nube bajar "+r.status); return await r.arrayBuffer(); }
+async function sbBajarJSON(path){ try{ const b=await sbBajar(path,12000); return b?JSON.parse(new TextDecoder().decode(b)):null; }catch(e){ return null; } }
+async function sbMetaGuardar(patch){ const meta=await sbBajarJSON("meta.json")||{names:{},ver:{}};
+  meta.names=Object.assign(meta.names||{},patch.names||{}); meta.ver=Object.assign(meta.ver||{},patch.ver||{}); if("corte" in patch)meta.corte=patch.corte;
+  await sbSubir("meta.json",new TextEncoder().encode(JSON.stringify(meta)),"application/json",15000); return meta; }
 
 // Carga perezosa: al abrir/cargar solo se GUARDA el buffer (sin parsear); el XLSX.read pesado
 // ocurre recién al Generar. Así abrir la página nunca se congela por re-parsear lo guardado.
@@ -1127,25 +1132,54 @@ function registrarSlot(c,buf,nombre,sufijo){ bufs[c]={buf,name:nombre||"archivo"
 function tiene(c){ return !!bufs[c]; }
 // Opciones de lectura rápidas: sin fórmulas/formato/estilos y en modo denso (~40% menos tiempo).
 const OPTS_XLSX={type:"array",dense:true,cellFormula:false,cellHTML:false,cellText:false,cellNF:false,cellStyles:false};
-function wb(c){ if(!bufs[c])return null; if(!archivos[c])archivos[c]=XLSX.read(bufs[c].buf,OPTS_XLSX); return archivos[c]; }
+// Del semáforo (archivo grande, ~20 hojas) solo se usan estas 3; parsear solo ellas ahorra
+// tiempo y memoria. Para los demás archivos se parsea todo (son pequeños).
+const SHEETS_SOLO={ semaforo:["bbdd","sn1","tms"] };
+function wb(c){ if(!bufs[c])return null;
+  if(!archivos[c]){ const solo=SHEETS_SOLO[c];
+    if(solo){ try{ const nombres=XLSX.read(bufs[c].buf,{type:"array",bookSheets:true}).SheetNames||[];
+        const pick=nombres.filter(n=>solo.includes(norm(n)));
+        archivos[c]=XLSX.read(bufs[c].buf, pick.length?Object.assign({},OPTS_XLSX,{sheets:pick}):OPTS_XLSX);
+      }catch(e){ archivos[c]=XLSX.read(bufs[c].buf,OPTS_XLSX); } }
+    else archivos[c]=XLSX.read(bufs[c].buf,OPTS_XLSX); }
+  return archivos[c]; }
 
 function bindInput(id,clave){ const el=document.getElementById(id); if(!el)return;
   el.addEventListener("change",async e=>{ const f=e.target.files[0]; if(!f)return;
-    const buf=await f.arrayBuffer(); registrarSlot(clave,buf,f.name);
-    idbPut(clave,{name:f.name,buf});
-    if(nubeOn()){ const ok=document.getElementById("ok-"+clave); ok.textContent="✓ "+f.name+" (subiendo…)";
-      try{ await sbSubir(clave+".xlsx",buf); await sbMetaGuardar({names:{[clave]:f.name}}); ok.textContent="✓ "+f.name+" (en la nube)"; }
-      catch(err){ console.warn("nube",err); ok.textContent="✓ "+f.name+" (local; nube falló)"; } }
+    const buf=await f.arrayBuffer();
+    const ver=Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+    registrarSlot(clave,buf,f.name);        // usable YA (Generar no espera a la nube)
+    idbPut(clave,{name:f.name,buf,ver});
+    if(nubeOn()){ const ok=document.getElementById("ok-"+clave); const base="✓ "+f.name;
+      ok.textContent=base+" (local · subiendo a la nube…)";
+      // Subida en SEGUNDO PLANO: no bloquea el uso; si la nube falla o tarda, el archivo ya sirve local.
+      (async()=>{ try{ await sbSubir(clave+".xlsx",buf); await sbMetaGuardar({names:{[clave]:f.name},ver:{[clave]:ver}}); ok.textContent=base+" (en la nube)"; }
+        catch(err){ console.warn("nube",err); ok.textContent=base+" (local; nube no disponible)"; } })();
+    }
   }); }
 SLOTS.forEach(c=>bindInput("f-"+c,c));
 
 (async()=>{
-  // 1) restaurar de IndexedDB (solo guarda el buffer; no parsea → apertura instantánea)
-  for(const c of SLOTS){ const rec=await idbGet(c); if(rec&&rec.buf) registrarSlot(c,rec.buf,rec.name,"(guardado)"); }
-  // 2) si hay nube, traer lo compartido en paralelo (descarga; el parseo sigue siendo perezoso)
-  if(nubeOn()){ const meta=await sbBajarJSON("meta.json")||{names:{}};
+  // 1) restaurar de IndexedDB → uso INMEDIATO (solo el buffer, sin parsear). La app queda lista aquí.
+  const verLocal={};
+  for(const c of SLOTS){ const rec=await idbGet(c); if(rec&&rec.buf){ registrarSlot(c,rec.buf,rec.name,"(guardado)"); verLocal[c]=rec.ver||""; } }
+  // 2) la nube corre en SEGUNDO PLANO (no bloquea la apertura) y SOLO descarga lo que cambió:
+  //    si ya tienes la última versión de un archivo, no se re-descargan sus MB. Todo con timeout.
+  if(!nubeOn())return;
+  (async()=>{
+    const meta=await sbBajarJSON("meta.json"); if(!meta)return; // nube lenta/caída → seguimos con lo local
     const mc=document.getElementById("m-corte"); if(mc&&!mc.value.trim()&&meta.corte)mc.value=meta.corte;
-    await Promise.all(SLOTS.map(async c=>{ try{ const buf=await sbBajar(c+".xlsx"); if(buf){ const nombre=(meta.names&&meta.names[c])||c; registrarSlot(c,buf,nombre,"(nube)"); idbPut(c,{name:nombre,buf}); } }catch(e){ console.warn("nube",c,e); } })); }
+    const ver=meta.ver||{}, names=meta.names||{};
+    await Promise.all(SLOTS.map(async c=>{
+      const remoto=ver[c], existeNube = remoto!==undefined || !!names[c];
+      if(!existeNube)return;                                   // no hay en la nube
+      if(verLocal[c] && remoto!==undefined && remoto===verLocal[c])return; // ya tienes la última
+      if(verLocal[c] && remoto===undefined)return;             // meta antiguo sin versión y ya tienes algo local
+      try{ const ok=document.getElementById("ok-"+c); if(ok)ok.textContent="↓ actualizando desde la nube…";
+        const buf=await sbBajar(c+".xlsx"); if(buf){ const nombre=names[c]||c; registrarSlot(c,buf,nombre,"(nube)"); idbPut(c,{name:nombre,buf,ver:remoto||""}); } }
+      catch(e){ console.warn("nube",c,e); const rec=await idbGet(c); const ok=document.getElementById("ok-"+c); if(ok&&rec)ok.textContent="✓ "+(rec.name||c)+" (guardado)"; }
+    }));
+  })();
 })();
 
 // El corte también se comparte (se guarda en meta.json de la nube al cambiarlo).
@@ -1159,7 +1193,7 @@ function segmentoBase(clave,nombre){ return { segmento:nombre, oper:null, bolsaT
 function series(filas,seg,etAlias,valAlias){ return filas.filter(r=>norm(txt(col(r,"Segmento")))===norm(seg)).map(r=>({etiqueta:txt(col(r,...etAlias)),valor:num(col(r,...valAlias))})); }
 
 function generar(){
-  const aviso=document.getElementById("aviso"); aviso.className="aviso"; aviso.textContent="Procesando… (puede tardar unos segundos)";
+  const aviso=document.getElementById("aviso"); aviso.className="aviso"; aviso.textContent="Procesando el semáforo… (unos segundos; los archivos grandes tardan más la 1ª vez)";
   document.getElementById("btn-generar").disabled=true;
   // Ceder el hilo para que se pinte "Procesando…" antes del parseo pesado del Excel.
   setTimeout(()=>{
