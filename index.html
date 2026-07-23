@@ -1168,11 +1168,18 @@ SLOTS.forEach(c=>bindInput("f-"+c,c));
 
 (async()=>{
   // 1) restaurar de IndexedDB → uso INMEDIATO (solo el buffer, sin parsear). La app queda lista aquí.
-  const verLocal={};
-  for(const c of SLOTS){ const rec=await idbGet(c); if(rec&&rec.buf){ registrarSlot(c,rec.buf,rec.name,"(guardado)"); verLocal[c]=rec.ver||""; verSlot[c]=rec.ver||""; } }
+  const verLocal={}; let semRestaurado=false;
+  for(const c of SLOTS){ const rec=await idbGet(c); if(rec&&rec.buf){ registrarSlot(c,rec.buf,rec.name,"(guardado)"); verLocal[c]=rec.ver||""; verSlot[c]=rec.ver||""; if(c==="semaforo")semRestaurado=true; } }
   // Tablero persistente: si ya se generó antes, se pinta al instante (sin parsear ni pulsar Generar).
   let dashLocalVer=null;
   { const dash=await idbGet("__dash"); if(dash&&dash.html){ pintarDashboard(dash); dashLocalVer=dash.ver||null; } }
+  // Auto-generado (self-heal): si el semáforo YA estaba guardado (de sesiones previas / nube) pero
+  // NO hay tablero mostrado, se arma solo. Solo aplica a archivos ya guardados al abrir, no a los que
+  // subes en el momento (para esos usas Actualizar). Con nube espera por si llega el tablero compartido.
+  const autoGen=()=>{ const haySalida=document.querySelector("#salida .seccion [data-capture]");
+    const btn=document.getElementById("btn-generar");
+    if(!haySalida && semRestaurado && tiene("semaforo") && btn && !btn.disabled){ generar(); } };
+  setTimeout(autoGen, nubeOn()?5000:400);
   // 2) la nube corre en SEGUNDO PLANO (no bloquea la apertura) y SOLO descarga lo que cambió:
   //    si ya tienes la última versión de un archivo, no se re-descargan sus MB. Todo con timeout.
   if(!nubeOn())return;
@@ -1186,13 +1193,14 @@ SLOTS.forEach(c=>bindInput("f-"+c,c));
       if(verLocal[c] && remoto!==undefined && remoto===verLocal[c])return; // ya tienes la última
       if(verLocal[c] && remoto===undefined)return;             // meta antiguo sin versión y ya tienes algo local
       try{ const ok=document.getElementById("ok-"+c); if(ok)ok.textContent="↓ actualizando desde la nube…";
-        const buf=await sbBajar(c+".xlsx"); if(buf){ const nombre=names[c]||c; registrarSlot(c,buf,nombre,"(nube)"); verSlot[c]=remoto||""; idbPut(c,{name:nombre,buf,ver:remoto||""}); } }
+        const buf=await sbBajar(c+".xlsx"); if(buf){ const nombre=names[c]||c; registrarSlot(c,buf,nombre,"(nube)"); verSlot[c]=remoto||""; if(c==="semaforo")semRestaurado=true; idbPut(c,{name:nombre,buf,ver:remoto||""}); } }
       catch(e){ console.warn("nube",c,e); const rec=await idbGet(c); const ok=document.getElementById("ok-"+c); if(ok&&rec)ok.textContent="✓ "+(rec.name||c)+" (guardado)"; }
     }));
   })();
   // Tablero compartido: baja el último tablero generado por cualquiera y lo pinta si es más nuevo.
   (async()=>{ try{ const b=await sbBajar("dashboard.json",60000); const snap=b?JSON.parse(new TextDecoder().decode(b)):null;
-    if(snap&&snap.html&&snap.ver!==dashLocalVer){ pintarDashboard(snap); idbPut("__dash",snap); } }catch(e){ console.warn("nube dash",e); } })();
+    const btn=document.getElementById("btn-generar");
+    if(snap&&snap.html&&snap.ver!==dashLocalVer && btn && !btn.disabled){ pintarDashboard(snap); idbPut("__dash",snap); } }catch(e){ console.warn("nube dash",e); } })();
 })();
 
 // El corte también se comparte (se guarda en meta.json de la nube al cambiarlo).
